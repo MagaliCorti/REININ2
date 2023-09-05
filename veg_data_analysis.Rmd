@@ -1,0 +1,324 @@
+---
+title: "Diet analysis"
+author: "Magali Corti"
+date: "8/31/2023"
+output: html_document
+---
+
+# Data analysis
+
+This is the scrypt for the data analysis concerning the dietary characterization.
+I will use as input the four filtered datasets containig the data about the bost abundant taxa of Vascular Plants (GH), Bryophytes (BR), Fungi (FU), and Eukaryotes (EU) in my 40 samples.
+
+Loading packages
+```{r message=FALSE, warning=FALSE, results='hide'}
+# install.packages("pacman")
+library(tidyverse)
+library(pacman)
+pacman::p_load("car","MASS","dplyr","tidyr","reshape2","vegan","ggplot2",
+               "picante","indicspecies","lme4","lmtest","multcomp","grid","phyloseq",
+               "Biostrings","QsRutils","phangorn","ape","pheatmap","stringr",
+               "dada2","DECIPHER","gridExtra","furrr","harrietr","ggtree",
+               "ppcor")
+
+#library(harrietr); library(ggtree); library(ppcor)
+```
+
+Importing data
+```{r}
+# importing dataframes
+EU <- read.csv(file = "outputs/FMFinn_EU_Sum.csv", header = T)
+GH <- read.csv(file = "outputs/FMFinn_GH_Sum.csv", header = T)
+BR <- read.csv(file = "outputs/FM_BR_Sum.csv", header = T)
+FU <- read.csv(file = "outputs/FM_FU_Sum.csv", header = T)
+```
+
+
+## Data visualization: Stacked barplots
+
+### Preparing table for data visualization
+
+Creating a dataframe with some additional metadata
+```{r}
+# erasing count row
+GH <- GH[-1,]
+
+# loading metadata dataframe
+sample_meta <- read.csv("data/sample_metadata.csv", sep = ";")
+sample_meta <- sample_meta[1:40, 2:6]
+
+# rename column by name
+sample_meta <- sample_meta %>% rename_at('Sample_Name', ~'Sample_ID')
+sample_meta <- sample_meta %>% rename_at('Species', ~'Herbivore')
+sample_meta <- sample_meta %>% rename_at('Date', ~'Sampling_Date')
+
+# adding herbivore column to GH matadata dataframe
+GH_meta <- cbind(sample_meta, GH[,-1])
+
+# make a vector of the samples for the analysis
+samples <- as.character(GH_meta$Sample_ID);
+```
+
+Changing format of the GH dataframe 
+```{r results='hide', warning=FALSE}
+# transposing (now we have taxa X sample df)
+GH_tax <- as.data.frame(t(GH))
+
+# make first row header of the df
+names(GH_tax) <- GH_tax[1,]
+GH_tax <- GH_tax[-1,]
+
+# convert from character to numeric
+GH_tax[,-1] <- as.data.frame(apply(GH_tax, 2, as.numeric))
+GH_tax$sample.HS1P1Q4_SH137 <- as.numeric(GH_tax$sample.HS1P1Q4_SH137)
+
+# make sample names one of the columns of the data
+GH_tax <- GH_tax %>% 
+  rownames_to_column("taxa")
+
+# calculate MOTU relative abundances 
+GH_tax[,-1] <- lapply(GH_tax[,-1], function(x) (x/sum(x))*100)
+print(colSums(GH_tax[-1]));
+
+# melt data frame for ggplot
+GHbar <- reshape2::melt(GH_tax, id.vars="taxa", value.name = "abun");
+colnames(GHbar)[2] <- "Sample_ID";
+GHbar <- merge(GHbar, GH_meta, by="Sample_ID");
+```
+
+### Plotting the stacked barplots
+```{r}
+# Barplot Vascular plants - GH
+barGH <- ggplot(data=GHbar, 
+              mapping=aes(x=Sample_ID,y=abun, fill=taxa))+
+  geom_bar(stat = "identity")+
+  facet_grid(~Herbivore, scales="free_x")+ 
+  theme_bw()+ 
+  labs(x = "Sample",
+       y = "Relative Abundance (%)",
+       fill="Vascular plant taxa")+
+  theme(legend.position="right", 
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=12, face="bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text.y = element_text(size=12),
+        axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),
+        strip.text = element_text(size =10, face="bold"))
+
+plot(barGH)
+
+
+# save image in pdf
+ggsave(filename="stackbarplot_GH.pdf",
+       device="pdf",path="outputs/figures",
+       plot=barGH,
+       width=10.5,
+       height=6,
+       units="in",
+       dpi=500)
+```
+
+
+
+## Data visualization: Plants associated with herbivore as determined by idicator species analysis
+
+### Preparing table for data visualization
+
+Starting from the table of MOTU relative abundances
+```{r}
+# transpose table of MOTU family abundances (GH_tax)
+GH_taxt <- as.data.frame(t(GH_tax))
+
+# make first row header of the df
+names(GH_taxt) <- GH_taxt[1,]
+GH_taxt <- GH_taxt[-1,]
+
+# convert from character to numeric
+GH_taxt <- as.data.frame(apply(GH_taxt, 2, as.numeric))
+```
+
+Getting list of plant taxa that may have different abundance among herbivores' diets
+```{r results='hide'}
+# classify the result by herbivore taxa: Hare, Moose, Ptarmigan, Reindeer, Rodent
+indGH <- multipatt(GH_taxt, GH_meta$Herbivore, control=how(nperm=999))
+#print(summary(indGH))
+
+# save findings to a text file
+cat("outputs/indicator_taxa_GH_herb.txt")
+#sink("outputs/indicator_taxa_GH_herb.txt")
+#summary(indGH)
+#sink()
+# not using sink function because error when knitting
+```
+
+Cleaning file from indicator species analysis
+```{r}
+# loading table
+hGH <- read.table("outputs/indicator_taxa_GH_herb.txt", sep="\t")
+
+# trim dataframes to only pertinent data (not looking at interaction between herbivore)
+hGH <- as.data.frame(hGH[12:31,])
+
+hGH <- as.data.frame(hGH[-c(2,10,13,19),]) 
+colnames(hGH)="datacol"
+
+#remove asterisks and trailing spaces from data
+hGH$A <- gsub(pattern = "\\*", replacement="", 
+          x=hGH$datacol)
+
+hGH$B <- gsub("\\s+", ",", gsub("^\\s+|\\s+$", "",hGH$A))
+
+# make new data frames with 3 columns: 
+# plant taxa | indicator species statistic | p-value
+hGHsplit <- as.data.frame(str_split_fixed(hGH$B, ",",3))
+
+markhGH <- grep(pattern = "Group", x=as.character(hGHsplit$V1))
+
+hGHsplit$herb <- c(
+  rep("Hare", markhGH[2]-markhGH[1]),
+  rep("Moose", markhGH[3]-markhGH[2]),
+  rep("Reindeer", markhGH[4]-markhGH[3]),
+  rep("Rodent", nrow(hGHsplit)-markhGH[4]+1))
+
+# remove unwanted rows
+hGH <- as.data.frame(hGHsplit[-markhGH,]);
+
+# rename columns of new data frames
+colnames(hGH) <- c("plant_taxa","stat","pvalue","herbivore");
+
+# coerce statistic column into numerical
+hGH$stat <- as.numeric(as.character(hGH$stat))
+
+# coerce plant taxa column to character
+hGH$plant_taxa <- as.character(hGH$plant_taxa)
+
+# order levels of factor
+hGH$herbivore <- factor(hGH$herbivore, 
+                        levels=c("Hare","Moose","Reindeer","Rodent"))
+hGH$herbivore <- factor(hGH$herbivore, levels = rev(levels(hGH$herbivore)))
+```
+
+### Plot plant taxa associated with particular herbivore
+
+Plotting figure
+```{r}
+# plot sideways barplot
+ibarGH <- ggplot(hGH, aes(x=plant_taxa, y=stat, fill=herbivore))+ 
+  geom_bar(stat="identity", width=0.5)+
+  coord_flip()+
+  scale_x_discrete(limits = hGH$plant_taxa)+
+  scale_y_continuous(breaks=c(0, 0.25, 0.50, 0.75,1))+
+  labs(x = "",
+       y = "Indicator Species statistic",
+       fill="Associated with",
+       title="By herbivore")+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        plot.title=element_text(size=9, face="bold"),
+        legend.key.size=unit(0.6, "cm"),
+        legend.text=element_text(size=9),
+        legend.title=element_text(size=9, face="bold"),
+        legend.position ="bottom",
+        legend.spacing.y = unit(0, "cm"),
+        axis.text.x = element_text(size=10),
+        axis.text.y = element_text(size=8))+
+  guides(fill=guide_legend(nrow=2,byrow=TRUE))
+
+plot(ibarGH)
+
+# save image 
+ggsave(filename="indicator_GH.pdf",
+       device="pdf",path="outputs/figures",
+       plot=ibarGH,
+       width=5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+
+
+## Data visualization: alpha-diversity
+
+### Computing alpha-diversity using phyloseq 
+
+Alpha-diversity measures: ASV richness, Chao1 richness, Shannon diversity, Simpson's diversity
+```{r}
+# first column to rowname
+row.names(GH) <- GH$Sample_ID
+GHalp <- GH[,-1]
+
+# make a phyloseq object and calculate 4 metrics of alpha-diversity
+psGH <- phyloseq(otu_table(as.matrix(GHalp), taxa_are_rows=FALSE))
+alphaGH <- estimate_richness(psGH,split = TRUE, 
+                        measures = c("Observed","Chao1","Shannon","Simpson"))
+
+# calculate Good's coverage and append to alpha df
+gcovGH <- goods(GHalp)
+alphaGH <- merge(alphaGH, gcovGH, by="row.names", all=TRUE)
+colnames(alphaGH)[1]="Sample_ID"
+```
+
+
+### Plotting alpha-diversity using phyloseq 
+
+Boxplots of alpha-diversity metrics
+```{r}
+# rearrange data frames to facilitate plotting in ggplot2
+alphaGHdf <- inner_join(alphaGH[,c(1,3,5,6)], as.data.frame(GH_meta[,c(2,3)]), by="Sample_ID")
+
+# melt alphaGHdf for Chao1 boxplots
+ChaoGH <- alphaGHdf[,c(1,2,5)]
+ChaoGH$cat <- "Chao1"
+colnames(ChaoGH) <- c("Sample","value","variable","category")
+
+# melt alphaGHdf for Shannon boxplots
+ShannonGH <- alphaGHdf[,c(1,3,5)]
+ShannonGH$cat <- "Shannon"
+colnames(ShannonGH) <- c("Sample","value","variable","category")
+
+# melt alphaGHdf for Simpson boxplots
+SimpsonGH <- alphaGHdf[,c(1,4,5)]
+SimpsonGH$cat <- "Simpson"
+colnames(SimpsonGH) <- c("Sample","value","variable","category")
+
+# merge the three melted df
+alphaGHp <- rbind(ChaoGH, ShannonGH, SimpsonGH)
+alphaGHp$category <- factor(alphaGHp$cat, levels=c("Chao1","Shannon", "Simpson"))
+
+# create plot
+p_aGH <- ggplot(data=alphaGHp, 
+                mapping=aes(x=variable, y=value, fill=variable))+
+  geom_boxplot()+
+  facet_wrap(~category, scales="free_y")+ 
+  theme_bw()+ 
+  labs(x = "",
+       y = "Alpha Diversity",
+       title="")+
+  theme(legend.position="none", 
+        plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12, face="bold"),
+        axis.text.y = element_text(size=10),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold"))
+
+plot(p_aGH)
+
+# save alpha-diversity boxplot
+ggsave(filename="alphadiv_boxplot_GH.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_aGH,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+
+
