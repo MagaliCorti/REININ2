@@ -1,0 +1,631 @@
+---
+title: "Vegetation Data: dietary analysis"
+author: "Magali Corti"
+date: "5/16/2023"
+output: 
+  html_document: 
+    toc: yes
+---
+
+This is the script that I made for the filtering of the raw data obtained from the bioinformatic analysis. The outputs of the dietary analysis are divided into several dataframes, F and M are two different libraries, while EU, BR, FU, and GH are the four primers that have been used for the DNA metabarcoding analysis (corresponding respectively to Eukaryota, Bryophytes, Fungi and Vascular Plants).
+Another dataset is the one obtained from the REININ project, characterizing the the diet of reindeer in Finnmark (the same study area of the previuos data), in this case the primers used were targeting Vascular plants (GH), and Eukaryotes (EUKA).
+Here I am going to filter and merge the raw datasets, with the goal of having a single dataset for each primer set, I will select the samples used in my study, and crate the dietary data that I will use to compare with the microbiome data.
+
+# Data filtering
+
+Loading packages
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+```
+
+
+## Eukariotic data
+
+#### Importing data
+```{r}
+# importing .tab files (tab separated files)
+F_EU <- read.table(file = "data/F_EU.tab", header = T, sep = "\t")
+M_EU <- read.table(file = "data/M_EU.tab", header = T, sep = "\t")
+Finn_EU <- read.table(file = "data/Finn_EU.tab", header = T, sep = "\t")
+```
+
+#### Erasing "obiclean" columns
+```{r}
+# selecting columns not starting with "obi" 
+F_EU <- F_EU %>% 
+  select(-(starts_with('obi')))
+M_EU <- M_EU %>% 
+  select(-(starts_with('obi')))
+Finn_EU <- Finn_EU %>% 
+  select(-(starts_with('obi')))
+```
+
+#### Excluding MOTUs defined only as Eukaryota (superkingdom level) 
+```{r}
+# subsetting dataframe: all rows which scientific name is different than Eukaryota
+F_EU <- F_EU %>% 
+  subset(scientific_name!="Eukaryota")
+M_EU <- M_EU %>% 
+  subset(scientific_name!="Eukaryota")
+Finn_EU <- Finn_EU %>% 
+  subset(scientific_name!="Eukaryota")
+```
+
+#### Filtering data that has less than 97% identity with the Eukariotic reference dataset
+97% is the minimal, and one of the most thresholds that are used in the analysis of metabarcoding outputs.
+```{r}
+# subsetting dataframe: all rows which best_identity.db_EUKA is greater than 0.97
+F_EU <- F_EU %>% 
+  subset(best_identity.db_EUKA>0.97)
+M_EU <- M_EU %>% 
+  subset(best_identity.db_EUKA>0.97)
+Finn_EU <- Finn_EU %>% 
+  subset(best_identity.db_EUKA>0.97)
+```
+
+#### Erasing "strange" data
+In our data, even after the previous data filtering during bioinformatic analysis, we have some probable mis-assignement or some contamination from other sources of DNA. Since our faeces samples come from herbivore species we assume that Gallus gallus shouldn't be on the list of dietary items, nor other mammals (even though reindeer have been occasionally witnessed feeding on lemmings during the winter).
+```{r}
+# subsetting dataframe: 
+
+# keeping all rows which scientific name is different than Gallus gallus and Boreoeutheria
+F_EU <- F_EU %>% 
+  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria" & scientific_name!="Salmonidae" & scientific_name!="Rattus norvegicus" & scientific_name!="Homo sapiens")
+M_EU <- M_EU %>% 
+  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria")
+Finn_EU <- Finn_EU %>% 
+  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria")
+
+# excluding data that have rank of kingdom
+# not that much informative
+F_EU <- F_EU %>% 
+  subset(rank!="kingdom")
+M_EU <- M_EU %>% 
+  subset(rank!="kingdom")
+Finn_EU <- Finn_EU %>% 
+  subset(rank!="kingdom")
+```
+
+
+#### Subsetting and merging datasets for Eukaryota
+The dataset that we have is quite big, while for our project we used only a total of 40 samples, here we select the one that we will be using.
+```{r}
+# selecting only column from M_GH dataset with sequence and our samples
+M_EU_join <- M_EU %>% select(sequence, sample.REINS1P2Q2_S413_R2, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q3_S415_R2, sample.REINS1P2Q3_S415_R3)
+
+# selecting only column from F_GH dataset with sequence, scientific name and our samples
+F_EU_join <- F_EU %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3, sample.NC2_FIN_R1, sample.NC2_FIN_R2, sample.NC2_FIN_R3, sample.NC3_FIN_R1, sample.NC3_FIN_R2, sample.NC2_FIN_R3, sample.NC4_FIN_R1, sample.NC4_FIN_R2, sample.NC4_FIN_R3, sample.NC5_FIN_R1, sample.NC5_FIN_R2, sample.NC5_FIN_R3, sample.NC6_FIN_R1, sample.NC6_FIN_R2, sample.NC6_FIN_R3, sample.NC7_FIN_R1, sample.NC7_FIN_R2, sample.NC7_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC2_FIN_R1, sample.PCRNC2_FIN_R2, sample.PCRNC2_FIN_R3, sample.PCRNC3_FIN_R2, sample.PCRNC3_FIN_R3, sample.PCRNC4_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC_FIN_R1, sample.PCRNC_FIN_R2, sample.PCRNC_FIN_R3)
+
+# selecting only column from Finn_GH dataset with sequence and our samples
+Finn_EU_join <- Finn_EU %>% select(sequence, sample.S1562_R1, sample.S1562_R2, sample.S1562_R3, sample.S1564_R1, sample.S1564_R2, sample.S1564_R3, sample.S1568_R1, sample.S1568_R2, sample.S1568_R3, sample.S1572_R1, sample.S1572_R2, sample.S1572_R3)
+
+# merging F_BR and M_BR in one single FM_BR dataset
+FM_EU <- full_join(F_EU_join, M_EU_join, by = "sequence", copy = FALSE, keep = NULL)
+FMFinn_EU <- full_join(FM_EU, Finn_EU_join, by = "sequence", copy = FALSE, keep = NULL)
+```
+
+
+
+#### Dereplication of MOTUs with the same scientific name
+It can happen that different sequences are assigned to the same scientific name, in order to do a more sound and easy analysis is good to dereplicate these data, resulting a dataframe with unique names and the total number of reads for each one of them.
+```{r results='hide'}
+# Check if we have duplicated scientific_name
+table(duplicated(FMFinn_EU$scientific_name))
+
+# 17170 taxa names are duplicates
+  
+# Dereplication by scientific_name
+FMFinn_EU_derep <- FMFinn_EU %>% 
+  group_by(scientific_name) %>% 
+  summarise_if(is.numeric, sum)
+
+# remove last row from data frame (NAs)
+FMFinn_EU_derep <- FMFinn_EU_derep %>% filter(row_number() <= n()-1)
+
+# replace all NA values with zero
+FMFinn_EU_derep <- FMFinn_EU_derep %>% replace(is.na(.), 0)
+
+# creating a count column with the sum of the readings
+rf <- FMFinn_EU_derep %>% rowwise(scientific_name)
+rf <- rf %>% mutate(count = sum(c_across(sample.MS1P1Q2_SH135_R1:sample.S1572_R3)))
+FMFinn_EU_derep <- cbind(FMFinn_EU_derep, count=rf$count)
+
+# Ordering data by decreasing number of counts
+order(FMFinn_EU_derep$count, decreasing = T)
+FMFinn_EU_derep <- FMFinn_EU_derep[order(FMFinn_EU_derep$count, decreasing = T),]
+```
+
+#### Removing rare reads
+We need to decide if for the purposes of our project we want to select a treshold which is a percentage of the dataset (eg. 1 per thousand most abundant MOTUs) or an arbitrary number of MOTUs considered as predominant in the diet (eg. 50 most abundant MOTUs).
+
+Checking the number of reads in the negative control
+```{r}
+neg_EU <- F_EU %>% select(count, sample.NC2_FIN_R1, sample.NC2_FIN_R2, sample.NC2_FIN_R3, sample.NC3_FIN_R1, sample.NC3_FIN_R2, sample.NC2_FIN_R3, sample.NC4_FIN_R1, sample.NC4_FIN_R2, sample.NC4_FIN_R3, sample.NC5_FIN_R1, sample.NC5_FIN_R2, sample.NC5_FIN_R3, sample.NC6_FIN_R1, sample.NC6_FIN_R2, sample.NC6_FIN_R3, sample.NC7_FIN_R1, sample.NC7_FIN_R2, sample.NC7_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC2_FIN_R1, sample.PCRNC2_FIN_R2, sample.PCRNC2_FIN_R3, sample.PCRNC3_FIN_R1, sample.PCRNC3_FIN_R2, sample.PCRNC3_FIN_R3, sample.PCRNC4_FIN_R1, sample.PCRNC4_FIN_R2, sample.PCRNC4_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC_FIN_R1, sample.PCRNC_FIN_R2, sample.PCRNC_FIN_R3)
+```
+
+```{r}
+# keeping only first 50 most abundant MOTUs
+FMFinn_EU_derep_cut <- FMFinn_EU_derep
+FMFinn_EU_derep_cut <- FMFinn_EU_derep_cut %>% 
+  slice(1:50)
+```
+
+#### Resolving PCR replicates
+Each sample have been amplified thrice, in order to have three PCR replicates, hence we need to dereplicate the results and find the total number of reads for each sample.
+On the other hand is very useful to create a matrix of the frequency of taxa detected across 3 samples (especially when there are many replicates).
+```{r}
+# We exclude first column (scientific_name), transpose and convert the data matrix in dataframe
+FMFinn_EU_derep_cut_R <- data.frame(t(FMFinn_EU_derep_cut[,-1]))
+# AND rename the table by scientific name
+names(FMFinn_EU_derep_cut_R) <- FMFinn_EU_derep_cut$scientific_name
+
+# make sample names one of the columns of the data
+FMFinn_EU_derep_cut_R <- FMFinn_EU_derep_cut_R %>% 
+  rownames_to_column("Sequencing_ID")
+
+# Prepare an id that represents all three replicates (by same name) and place that after "Sequencing_ID"
+FMFinn_EU_derep_cut_R <- FMFinn_EU_derep_cut_R %>% 
+  add_column(Sample_ID = str_replace_all(FMFinn_EU_derep_cut_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+
+# get read sum of all three replicates
+FMFinn_EU_clean_Rsum <- FMFinn_EU_derep_cut_R %>% 
+  select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+# We have the read data in required format (Sample X Species)
+
+# Convert un-merged read data to 0 or 1, remove first two columns
+FMFinn_EU_derep_cut_PCR <- data.frame(ifelse (FMFinn_EU_derep_cut_R[,-c(1:2)]>0, 1, 0))
+
+# Combine with the first two columns of the previous data
+FMFinn_EU_derep_cut_PCR <- cbind(FMFinn_EU_derep_cut_R[,c(1:2)], FMFinn_EU_derep_cut_PCR)
+
+# Follow the steps used while generating read sums
+FMFinn_EU_clean_PCR <- FMFinn_EU_derep_cut_PCR %>% 
+  select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+FMFinn_EU_clean_PCR <- FMFinn_EU_clean_PCR[-1,]
+# We have the frequency data in required format (Sample X Species)
+```
+
+#### Exporting dataframes
+```{r}
+# exporting the dataframe of our samples in csv format
+write.csv(FMFinn_EU_clean_Rsum, "outputs/FMFinn_EU_Sum.csv", row.names = F)
+write.csv(FMFinn_EU_clean_PCR, "outputs/FMFinn_EU_PCR.csv", row.names = F)
+```
+
+
+
+## Bryophyte data
+
+#### Importing data
+```{r}
+# importing .tab files (tab separated files)
+F_BR <- read.table(file = "data/F_BR.tab", header = T, sep = "\t")
+M_BR <- read.table(file = "data/M_BR.tab", header = T, sep = "\t")
+```
+
+#### Erasing "obiclean" columns
+```{r}
+# selecting columns not starting with "obi" 
+F_BR <- F_BR %>% 
+  select(-(starts_with('obi')))
+M_BR <- M_BR %>% 
+  select(-(starts_with('obi')))
+```
+
+#### Excluding MOTUs defined only as Eukaryota (superkingdom level) 
+```{r}
+# subsetting dataframe: all rows which scintific name is different than Eukaryota
+F_BR <- F_BR %>% 
+  subset(scientific_name!="Eukaryota")
+M_BR <- M_BR %>% 
+  subset(scientific_name!="Eukaryota")
+```
+
+#### Filtering data that has less than 97% identity with the Bryophyte reference dataset
+```{r}
+# subsetting dataframe: all rows which best_identity.db_BRYO is greater than 0.97
+F_BR <- F_BR %>% 
+  subset(best_identity.db_BRYO>0.97)
+M_BR <- M_BR %>% 
+  subset(best_identity.db_BRYO>0.97)
+```
+
+#### Erasing not informative data
+```{r}
+# erasing data that have rank of kingdom
+F_BR <- F_BR %>% 
+  subset(rank!="kingdom")
+M_BR <- M_BR %>% 
+  subset(rank!="kingdom")
+```
+
+#### Subsetting and merging datasets for Bryophytes
+```{r}
+# selecting only column from M_BR dataset with sequence and our samples
+M_BR_join <- M_BR %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3)
+
+# selecting only column from F_BR dataset with sequence, scientific name and our samples
+F_BR_join <- F_BR %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3)
+
+# merging F_BR and M_BR in one single FM_BR dataset
+FM_BR <- full_join(F_BR_join, M_BR_join, by = "sequence", copy = FALSE, keep = NULL)
+```
+
+#### Dereplication of MOTUs with the same scientific name
+```{r results='hide'}
+# Check if we have duplicated scientific_name
+table(duplicated(FM_BR$scientific_name))
+
+# 3272 taxa names are duplicates
+  
+# Dereplication by scientific_name
+FM_BR_derep <- FM_BR %>% 
+  group_by(scientific_name) %>% 
+  summarise_if(is.numeric, sum)
+
+# remove last row from data frame
+FM_BR_derep <- FM_BR_derep %>% filter(row_number() <= n()-1)
+
+# replace all NA values with zero
+FM_BR_derep <- FM_BR_derep %>% replace(is.na(.), 0)
+
+# creating a count column with the sum of the readings
+rf <- FM_BR_derep %>% rowwise(scientific_name)
+rf <- rf %>% mutate(count = sum(c_across(sample.MS1P1Q2_SH135_R1:sample.REINS1P2Q3_S415_R3)))
+FM_BR_derep <- cbind(FM_BR_derep, count=rf$count)
+
+# Ordering data by decreasing number of counts
+order(FM_BR_derep$count, decreasing = T)
+FM_BR_derep <- FM_BR_derep[order(FM_BR_derep$count, decreasing = T),]
+```
+
+#### Removing rare reads
+```{r}
+# keeping only first 50 most abundant MOTUs
+FM_BR_derep_cut <- FM_BR_derep
+FM_BR_derep_cut <- FM_BR_derep_cut %>% 
+  slice(1:50)
+
+```
+
+#### Resolving PCR replicates
+```{r}
+# We exclude first column (scientific_name), transpose and convert the data matrix in dataframe
+FM_BR_derep_cut_R <- data.frame(t(FM_BR_derep_cut[,-1]))
+# AND rename the table by scientific name
+names(FM_BR_derep_cut_R) <- FM_BR_derep_cut$scientific_name
+
+# make sample names one of the columns of the data
+FM_BR_derep_cut_R <- FM_BR_derep_cut_R %>% 
+  rownames_to_column("Sequencing_ID")
+
+# Prepare an id that represents all three replicates (by same name) and place that after "Sequencing_ID"
+FM_BR_derep_cut_R <- FM_BR_derep_cut_R %>% 
+  add_column(Sample_ID = str_replace_all(FM_BR_derep_cut_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+
+# get read sum of all three replicates
+FM_BR_clean_Rsum <- FM_BR_derep_cut_R %>% 
+  select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+# We have the read data in required format (Sample X Species)
+
+# Convert un-merged read data to 0 or 1, remove first two columns
+FM_BR_derep_cut_PCR <- data.frame(ifelse (FM_BR_derep_cut_R[,-c(1:2)]>0, 1, 0))
+
+# Combine with the first two columns of the previous data
+FM_BR_derep_cut_PCR <- cbind (FM_BR_derep_cut_R[,c(1:2)], FM_BR_derep_cut_PCR)
+
+# Follow the steps used while generating read sums
+FM_BR_clean_PCR <- FM_BR_derep_cut_PCR %>% 
+  select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+FM_BR_clean_PCR <- FM_BR_clean_PCR[-1,]
+# We have the frequency data in required format (Sample X Species)
+```
+
+#### Exporting dataframes
+```{r}
+# exporting the dataframe of our samples in csv format
+write.csv(FM_BR_clean_Rsum, "outputs/FM_BR_Sum.csv", row.names = F)
+write.csv(FM_BR_clean_PCR, "outputs/FM_BR_PCR.csv", row.names = F)
+```
+
+
+
+## Fungi data
+
+#### Importing data
+```{r}
+# importing .tab files (tab separated files)
+F_FU <- read.table(file = "data/F_FU.tab", header = T, sep = "\t")
+M_FU <- read.table(file = "data/M_FU.tab", header = T, sep = "\t")
+```
+
+#### Erasing "obiclean" columns
+```{r}
+# selecting columns not starting with "obi" 
+F_FU <- F_FU %>% 
+  select(-(starts_with('obi')))
+M_FU <- M_FU %>% 
+  select(-(starts_with('obi')))
+```
+
+#### Excluding MOTUs defined only as Eukaryota (superkingdom level) 
+```{r}
+# subsetting dataframe: all rows which scintific name is different than Eukaryota
+F_FU <- F_FU %>% 
+  subset(scientific_name!="Eukaryota")
+M_FU <- M_FU %>% 
+  subset(scientific_name!="Eukaryota")
+```
+
+#### Filtering data that has less than 97% identity with the Fungi reference dataset
+```{r}
+# subsetting dataframe: all rows which best_identity.db_FUNGI is greater than 0.97
+F_FU <- F_FU %>% 
+  subset(best_identity.db_FUNGI>0.97)
+M_FU <- M_FU %>% 
+  subset(best_identity.db_FUNGI>0.97)
+```
+
+#### Erasing not informative data
+```{r}
+# erasing data that have rank of kingdom
+F_FU <- F_FU %>% 
+  subset(rank!="kingdom")
+M_FU <- M_FU %>% 
+  subset(rank!="kingdom")
+```
+
+#### Subsetting and merging datasets for Fungi
+```{r}
+# selecting only column from M_FU dataset with sequence and our samples
+M_FU_join <- M_FU %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q2_S413_R2, sample.REINS1P2Q3_S415_R2, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3)
+
+# selecting only column from F_FU dataset with sequence, scientific name and our samples
+F_FU_join <- F_FU %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3)
+
+# merging F_BR and M_BR in one single FM_BR dataset
+FM_FU <- full_join(F_FU_join, M_FU_join, by = "sequence", copy = FALSE, keep = NULL)
+```
+
+#### Dereplication of MOTUs with the same scientific name
+```{r results='hide'}
+# Check if we have duplicated scientific_name
+table(duplicated(FM_FU$scientific_name))
+
+# 16944 taxa names are duplicates
+  
+# Dereplication by scientific_name
+FM_FU_derep <- FM_FU %>% 
+  group_by(scientific_name) %>% 
+  summarise_if(is.numeric, sum)
+
+# remove last row from data frame
+FM_FU_derep <- FM_FU_derep %>% filter(row_number() <= n()-1)
+
+# replace all NA values with zero
+FM_FU_derep <- FM_FU_derep %>% replace(is.na(.), 0)
+
+# creating a count column with the sum of the readings
+rf <- FM_FU_derep %>% rowwise(scientific_name)
+rf <- rf %>% mutate(count = sum(c_across(sample.MS1P1Q2_SH135_R1:sample.REINS1P2Q3_S415_R3)))
+FM_FU_derep <- cbind(FM_FU_derep, count=rf$count)
+
+# Ordering data by decreasing number of counts
+order(FM_FU_derep$count, decreasing = T)
+FM_FU_derep <- FM_FU_derep[order(FM_FU_derep$count, decreasing = T),]
+```
+
+#### Removing rare reads
+```{r}
+# keeping only first 50 most abundant MOTUs
+FM_FU_derep_cut <- FM_FU_derep
+FM_FU_derep_cut <- FM_FU_derep_cut %>% 
+  slice(1:50)
+
+```
+
+#### Resolving PCR replicates
+```{r}
+# We exclude first column (scientific_name), transpose and convert the data matrix in dataframe
+FM_FU_derep_cut_R <- data.frame(t(FM_FU_derep_cut[,-1]))
+# AND rename the table by scientific name
+names(FM_FU_derep_cut_R) <- FM_FU_derep_cut$scientific_name
+
+# make sample names one of the columns of the data
+FM_FU_derep_cut_R <- FM_FU_derep_cut_R %>% 
+  rownames_to_column("Sequencing_ID")
+
+# Prepare an id that represents all three replicates (by same name) and place that after "Sequencing_ID"
+FM_FU_derep_cut_R <- FM_FU_derep_cut_R %>% 
+  add_column(Sample_ID = str_replace_all(FM_FU_derep_cut_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+
+# get read sum of all three replicates
+FM_FU_clean_Rsum <- FM_FU_derep_cut_R %>% 
+  select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+# We have the read data in required format (Sample X Species)
+
+# Convert un-merged read data to 0 or 1, remove first two columns
+FM_FU_derep_cut_PCR <- data.frame(ifelse (FM_FU_derep_cut_R[,-c(1:2)]>0, 1, 0))
+
+# Combine with the first two columns of the previous data
+FM_FU_derep_cut_PCR <- cbind(FM_FU_derep_cut_R[,c(1:2)], FM_FU_derep_cut_PCR)
+
+# Follow the steps used while generating read sums
+FM_FU_clean_PCR <- FM_FU_derep_cut_PCR %>% 
+  select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+FM_FU_clean_PCR <- FM_FU_clean_PCR[-1,]
+# We have the frequency data in required format (Sample X Species)
+```
+
+#### Exporting dataframes
+```{r}
+# exporting the dataframe of our samples in csv format
+write.csv(FM_FU_clean_Rsum, "outputs/FM_FU_Sum.csv", row.names = F)
+write.csv(FM_FU_clean_PCR, "outputs/FM_FU_PCR.csv", row.names = F)
+```
+
+
+
+## Plant data
+
+#### Importing data
+```{r}
+# importing .tab files (tab separated files)
+F_GH <- read.table(file = "data/F_GH.tab", header = T, sep = "\t")
+M_GH <- read.table(file = "data/M_GH.tab", header = T, sep = "\t")
+Finn_GH <- read.table(file = "data/Finn_GH.tab", header = T, sep = "\t")
+```
+
+#### Erasing "obiclean" columns
+```{r}
+# selecting columns not starting with "obi" 
+F_GH <- F_GH %>% 
+  select(-(starts_with('obi')))
+M_GH <- M_GH %>% 
+  select(-(starts_with('obi')))
+Finn_GH <- Finn_GH %>% 
+  select(-(starts_with('obi')))
+```
+
+#### Excluding MOTUs defined only as Eukaryota (superkingdom level) 
+```{r}
+# subsetting dataframe: all rows which scientific name is different than Eukaryota
+F_GH <- F_GH %>% 
+  subset(scientific_name!="Eukaryota")
+M_GH <- M_GH %>% 
+  subset(scientific_name!="Eukaryota")
+Finn_GH <- Finn_GH %>% 
+  subset(scientific_name!="Eukaryota")
+```
+
+#### Filtering data that has less than 97% identity with the Plant reference dataset
+```{r}
+# subsetting dataframe: all rows which best_identity.arctborbryo.gh is greater than 0.97
+F_GH <- F_GH %>% 
+  subset(best_identity.arctborbryo.gh>0.97)
+M_GH <- M_GH %>% 
+  subset(best_identity.arctborbryo.gh>0.97)
+Finn_GH <- Finn_GH %>% 
+  subset(best_identity.db_GH>0.97)
+```
+
+#### Erasing not informative data
+```{r}
+# erasing data that have rank of kingdom
+F_GH <- F_GH %>% 
+  subset(rank!="kingdom")
+M_GH <- M_GH %>% 
+  subset(rank!="kingdom")
+Finn_GH <- Finn_GH %>% 
+  subset(rank!="kingdom")
+```
+
+#### Subsetting and merging datasets for Plants
+```{r}
+# selecting only column from M_GH dataset with sequence and our samples
+M_GH_join <- M_GH %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R2, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3)
+
+# selecting only column from F_GH dataset with sequence, scientific name and our samples
+F_GH_join <- F_GH %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3)
+
+# selecting only column from Finn_GH dataset with sequence and our samples
+Finn_GH_join <- Finn_GH %>% select(sequence, sample.S1562_R1, sample.S1562_R2, sample.S1562_R3, sample.S1564_R1, sample.S1564_R2, sample.S1564_R3, sample.S1568_R1, sample.S1568_R2, sample.S1568_R3, sample.S1572_R1, sample.S1572_R2, sample.S1572_R3)
+
+# merging F_BR and M_BR in one single FM_BR dataset
+FM_GH <- full_join(F_GH_join, M_GH_join, by = "sequence", copy = FALSE, keep = NULL)
+FMFinn_GH <- full_join(FM_GH, Finn_GH_join, by = "sequence", copy = FALSE, keep = NULL)
+```
+
+#### Dereplication of MOTUs with the same scientific name
+```{r results='hide'}
+# Check if we have duplicated scientific_name
+table(duplicated(FMFinn_GH$scientific_name))
+
+# 7050 taxa names are duplicates
+  
+# Dereplication by scientific_name
+FMFinn_GH_derep <- FMFinn_GH %>% 
+  group_by(scientific_name) %>% 
+  summarise_if(is.numeric, sum)
+
+# remove last row from data frame
+FMFinn_GH_derep <- FMFinn_GH_derep %>% filter(row_number() <= n()-1)
+
+# replace all NA values with zero
+FMFinn_GH_derep <- FMFinn_GH_derep %>% replace(is.na(.), 0)
+
+# creating a count column with the sum of the readings
+rf <- FMFinn_GH_derep %>% rowwise(scientific_name)
+rf <- rf %>% mutate(count = sum(c_across(sample.MS1P1Q2_SH135_R1:sample.REINS1P2Q3_S415_R3)))
+FMFinn_GH_derep <- cbind(FMFinn_GH_derep, count=rf$count)
+
+# Ordering data by decreasing number of counts
+order(FMFinn_GH_derep$count, decreasing = T)
+FMFinn_GH_derep <- FMFinn_GH_derep[order(FMFinn_GH_derep$count, decreasing = T),]
+```
+
+#### Removing rare reads
+```{r}
+# keeping only first 50 most abundant MOTUs
+FMFinn_GH_derep_cut <- FMFinn_GH_derep
+FMFinn_GH_derep_cut <- FMFinn_GH_derep_cut %>% 
+  slice(1:50)
+
+```
+
+#### Resolving PCR replicates
+```{r}
+# We exclude first column (scientific_name), transpose and convert the data matrix in dataframe
+FMFinn_GH_derep_cut_R <- data.frame(t(FMFinn_GH_derep_cut[,-1]))
+# AND rename the table by scientific name
+names(FMFinn_GH_derep_cut_R) <- FMFinn_GH_derep_cut$scientific_name
+
+# make sample names one of the columns of the data
+FMFinn_GH_derep_cut_R <- FMFinn_GH_derep_cut_R %>% 
+  rownames_to_column("Sequencing_ID")
+
+# Prepare an id that represents all three replicates (by same name) and place that after "Sequencing_ID"
+FMFinn_GH_derep_cut_R <- FMFinn_GH_derep_cut_R %>% 
+  add_column(Sample_ID = str_replace_all(FMFinn_GH_derep_cut_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+
+# get read sum of all three replicates
+FMFinn_GH_clean_Rsum <- FMFinn_GH_derep_cut_R %>% 
+  select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+# We have the read data in required format (Sample X Species)
+
+# Convert un-merged read data to 0 or 1, remove first two columns
+FMFinn_GH_derep_cut_PCR <- data.frame(ifelse (FMFinn_GH_derep_cut_R[,-c(1:2)]>0, 1, 0))
+
+# Combine with the first two columns of the previous data
+FMFinn_GH_derep_cut_PCR <- cbind(FMFinn_GH_derep_cut_R[,c(1:2)], FMFinn_GH_derep_cut_PCR)
+
+# Follow the steps used while generating read sums
+FMFinn_GH_clean_PCR <- FMFinn_GH_derep_cut_PCR %>% 
+  select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+FMFinn_GH_clean_PCR <- FMFinn_GH_clean_PCR[-1,]
+# We have the frequency data in required format (Sample X Species)
+```
+
+#### Exporting dataframes
+```{r}
+# exporting the dataframe of our samples in csv format
+write.csv(FMFinn_GH_clean_Rsum, "outputs/FMFinn_GH_Sum.csv", row.names = F)
+write.csv(FMFinn_GH_clean_PCR, "outputs/FMFinn_GH_PCR.csv", row.names = F)
+```
+
