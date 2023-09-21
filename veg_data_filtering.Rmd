@@ -14,8 +14,9 @@ Here I am going to filter and merge the raw datasets, with the goal of having a 
 # Data filtering
 
 Loading packages
-```{r message=FALSE, warning=FALSE}
-library(tidyverse)
+```{r message=FALSE, warning=FALSE, results='hide'}
+pack <- c("tidyverse","janitor","vegan","phyloseq","decontam","devtools","Rtools")
+sapply(pack, require, character.only = TRUE)
 ```
 
 
@@ -33,11 +34,11 @@ Finn_EU <- read.table(file = "data/Finn_EU.tab", header = T, sep = "\t")
 ```{r}
 # selecting columns not starting with "obi" 
 F_EU <- F_EU %>% 
-  select(-(starts_with('obi')))
+  dplyr::select(-(starts_with('obi')))
 M_EU <- M_EU %>% 
-  select(-(starts_with('obi')))
+  dplyr::select(-(starts_with('obi')))
 Finn_EU <- Finn_EU %>% 
-  select(-(starts_with('obi')))
+  dplyr::select(-(starts_with('obi')))
 ```
 
 #### Excluding MOTUs defined only as Eukaryota (superkingdom level) 
@@ -69,12 +70,12 @@ In our data, even after the previous data filtering during bioinformatic analysi
 # subsetting dataframe: 
 
 # keeping all rows which scientific name is different than Gallus gallus and Boreoeutheria
-F_EU <- F_EU %>% 
-  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria" & scientific_name!="Salmonidae" & scientific_name!="Rattus norvegicus" & scientific_name!="Homo sapiens")
-M_EU <- M_EU %>% 
-  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria")
-Finn_EU <- Finn_EU %>% 
-  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria")
+#F_EU <- F_EU %>% 
+#  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria" & scientific_name!="Salmonidae" & scientific_name!="Rattus norvegicus" & scientific_name!="Homo sapiens")
+#M_EU <- M_EU %>% 
+#  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria")
+#Finn_EU <- Finn_EU %>% 
+#  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria")
 
 # excluding data that have rank of kingdom
 # not that much informative
@@ -90,20 +91,19 @@ Finn_EU <- Finn_EU %>%
 #### Subsetting and merging datasets for Eukaryota
 The dataset that we have is quite big, while for our project we used only a total of 40 samples, here we select the one that we will be using.
 ```{r}
-# selecting only column from M_GH dataset with sequence and our samples
+# selecting only column from M_EU dataset with sequence and our samples
 M_EU_join <- M_EU %>% select(sequence, sample.REINS1P2Q2_S413_R2, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q3_S415_R2, sample.REINS1P2Q3_S415_R3)
 
-# selecting only column from F_GH dataset with sequence, scientific name and our samples
+# selecting only column from F_EU dataset with sequence, scientific name and our samples
 F_EU_join <- F_EU %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3, sample.NC2_FIN_R1, sample.NC2_FIN_R2, sample.NC2_FIN_R3, sample.NC3_FIN_R1, sample.NC3_FIN_R2, sample.NC2_FIN_R3, sample.NC4_FIN_R1, sample.NC4_FIN_R2, sample.NC4_FIN_R3, sample.NC5_FIN_R1, sample.NC5_FIN_R2, sample.NC5_FIN_R3, sample.NC6_FIN_R1, sample.NC6_FIN_R2, sample.NC6_FIN_R3, sample.NC7_FIN_R1, sample.NC7_FIN_R2, sample.NC7_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC2_FIN_R1, sample.PCRNC2_FIN_R2, sample.PCRNC2_FIN_R3, sample.PCRNC3_FIN_R2, sample.PCRNC3_FIN_R3, sample.PCRNC4_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC_FIN_R1, sample.PCRNC_FIN_R2, sample.PCRNC_FIN_R3)
 
-# selecting only column from Finn_GH dataset with sequence and our samples
+# selecting only column from Finn_EU dataset with sequence and our samples
 Finn_EU_join <- Finn_EU %>% select(sequence, sample.S1562_R1, sample.S1562_R2, sample.S1562_R3, sample.S1564_R1, sample.S1564_R2, sample.S1564_R3, sample.S1568_R1, sample.S1568_R2, sample.S1568_R3, sample.S1572_R1, sample.S1572_R2, sample.S1572_R3)
 
-# merging F_BR and M_BR in one single FM_BR dataset
+# merging F_EU and M_EU in one single FM_EU dataset
 FM_EU <- full_join(F_EU_join, M_EU_join, by = "sequence", copy = FALSE, keep = NULL)
 FMFinn_EU <- full_join(FM_EU, Finn_EU_join, by = "sequence", copy = FALSE, keep = NULL)
 ```
-
 
 
 #### Dereplication of MOTUs with the same scientific name
@@ -124,76 +124,150 @@ FMFinn_EU_derep <- FMFinn_EU_derep %>% filter(row_number() <= n()-1)
 
 # replace all NA values with zero
 FMFinn_EU_derep <- FMFinn_EU_derep %>% replace(is.na(.), 0)
-
-# creating a count column with the sum of the readings
-rf <- FMFinn_EU_derep %>% rowwise(scientific_name)
-rf <- rf %>% mutate(count = sum(c_across(sample.MS1P1Q2_SH135_R1:sample.S1572_R3)))
-FMFinn_EU_derep <- cbind(FMFinn_EU_derep, count=rf$count)
-
-# Ordering data by decreasing number of counts
-order(FMFinn_EU_derep$count, decreasing = T)
-FMFinn_EU_derep <- FMFinn_EU_derep[order(FMFinn_EU_derep$count, decreasing = T),]
 ```
 
-#### Removing rare reads
-We need to decide if for the purposes of our project we want to select a treshold which is a percentage of the dataset (eg. 1 per thousand most abundant MOTUs) or an arbitrary number of MOTUs considered as predominant in the diet (eg. 50 most abundant MOTUs).
-
-Checking the number of reads in the negative control
-```{r}
-neg_EU <- F_EU %>% select(count, sample.NC2_FIN_R1, sample.NC2_FIN_R2, sample.NC2_FIN_R3, sample.NC3_FIN_R1, sample.NC3_FIN_R2, sample.NC2_FIN_R3, sample.NC4_FIN_R1, sample.NC4_FIN_R2, sample.NC4_FIN_R3, sample.NC5_FIN_R1, sample.NC5_FIN_R2, sample.NC5_FIN_R3, sample.NC6_FIN_R1, sample.NC6_FIN_R2, sample.NC6_FIN_R3, sample.NC7_FIN_R1, sample.NC7_FIN_R2, sample.NC7_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC2_FIN_R1, sample.PCRNC2_FIN_R2, sample.PCRNC2_FIN_R3, sample.PCRNC3_FIN_R1, sample.PCRNC3_FIN_R2, sample.PCRNC3_FIN_R3, sample.PCRNC4_FIN_R1, sample.PCRNC4_FIN_R2, sample.PCRNC4_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC_FIN_R1, sample.PCRNC_FIN_R2, sample.PCRNC_FIN_R3)
-```
-
-```{r}
-# keeping only first 50 most abundant MOTUs
-FMFinn_EU_derep_cut <- FMFinn_EU_derep
-FMFinn_EU_derep_cut <- FMFinn_EU_derep_cut %>% 
-  slice(1:50)
-```
 
 #### Resolving PCR replicates
 Each sample have been amplified thrice, in order to have three PCR replicates, hence we need to dereplicate the results and find the total number of reads for each sample.
 On the other hand is very useful to create a matrix of the frequency of taxa detected across 3 samples (especially when there are many replicates).
 ```{r}
 # We exclude first column (scientific_name), transpose and convert the data matrix in dataframe
-FMFinn_EU_derep_cut_R <- data.frame(t(FMFinn_EU_derep_cut[,-1]))
+FMFinn_EU_derep_R <- data.frame(t(FMFinn_EU_derep[,-1]))
 # AND rename the table by scientific name
-names(FMFinn_EU_derep_cut_R) <- FMFinn_EU_derep_cut$scientific_name
+names(FMFinn_EU_derep_R) <- FMFinn_EU_derep$scientific_name
 
 # make sample names one of the columns of the data
-FMFinn_EU_derep_cut_R <- FMFinn_EU_derep_cut_R %>% 
+FMFinn_EU_derep_R <- FMFinn_EU_derep_R %>% 
   rownames_to_column("Sequencing_ID")
 
 # Prepare an id that represents all three replicates (by same name) and place that after "Sequencing_ID"
-FMFinn_EU_derep_cut_R <- FMFinn_EU_derep_cut_R %>% 
-  add_column(Sample_ID = str_replace_all(FMFinn_EU_derep_cut_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+FMFinn_EU_derep_R <- FMFinn_EU_derep_R %>% 
+  add_column(Sample_ID = str_replace_all(FMFinn_EU_derep_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
 
 # get read sum of all three replicates
-FMFinn_EU_clean_Rsum <- FMFinn_EU_derep_cut_R %>% 
-  select(-Sequencing_ID) %>% 
+FMFinn_EU_clean_Rsum <- FMFinn_EU_derep_R %>% 
+  dplyr::select(-Sequencing_ID) %>% 
   group_by(Sample_ID) %>% 
   summarise_if(is.numeric, sum)
 # We have the read data in required format (Sample X Species)
 
 # Convert un-merged read data to 0 or 1, remove first two columns
-FMFinn_EU_derep_cut_PCR <- data.frame(ifelse (FMFinn_EU_derep_cut_R[,-c(1:2)]>0, 1, 0))
+#FMFinn_EU_derep_PCR <- data.frame(ifelse (FMFinn_EU_derep_R[,-c(1:2)]>0, 1, 0))
 
 # Combine with the first two columns of the previous data
-FMFinn_EU_derep_cut_PCR <- cbind(FMFinn_EU_derep_cut_R[,c(1:2)], FMFinn_EU_derep_cut_PCR)
+#FMFinn_EU_derep_PCR <- cbind(FMFinn_EU_derep_R[,c(1:2)], FMFinn_EU_derep_PCR)
 
 # Follow the steps used while generating read sums
-FMFinn_EU_clean_PCR <- FMFinn_EU_derep_cut_PCR %>% 
-  select(-Sequencing_ID) %>% 
-  group_by(Sample_ID) %>% 
-  summarise_if(is.numeric, sum)
-FMFinn_EU_clean_PCR <- FMFinn_EU_clean_PCR[-1,]
+#FMFinn_EU_clean_PCR <- FMFinn_EU_derep_PCR %>% 
+#  dplyr::select(-Sequencing_ID) %>% 
+#  group_by(Sample_ID) %>% 
+#  summarise_if(is.numeric, sum)
+#FMFinn_EU_clean_PCR <- FMFinn_EU_clean_PCR[-1,]
 # We have the frequency data in required format (Sample X Species)
 ```
 
+
+#### Identifying contaminants in marker-gene data
+
+Creating FMFinn_EU metadata dataframe with a Sample_or_Control column for running decontam function
+```{r}
+FMFinn_EU_meta <- as.data.frame(FMFinn_EU_clean_Rsum$Sample_ID)
+names(FMFinn_EU_meta) <- "Sample_ID"
+
+FMFinn_EU_meta$Sample_or_Control <- "True Sample"
+FMFinn_EU_meta$Sample_or_Control[grepl("NC", FMFinn_EU_meta$Sample_ID)] <- "Control Sample"
+
+FMFinn_EU_meta <- FMFinn_EU_meta[-1,]
+```
+
+Creating phyloseq object
+```{r}
+EU_to_ps <- as.data.frame(FMFinn_EU_clean_Rsum[-1,])
+
+# first column to rowname
+row.names(EU_to_ps) <- EU_to_ps$Sample_ID
+EU_to_ps <- EU_to_ps[,-1]
+
+ps_EU <- phyloseq(otu_table(EU_to_ps, taxa_are_rows=T))
+```
+
+Identify Contaminants - with Prevalence method
+```{r}
+neg <- FMFinn_EU_meta$Sample_or_Control == 'Control Sample' # True if a negative control sample
+
+# Prevalence-based contaminant classification
+contam <- isContaminant(as.matrix(ps_EU), neg=neg, threshold=0.1, detailed=TRUE, normalize=TRUE, method='prevalence')
+
+table(contam$contaminant)
+
+#contam
+```
+
+Erasing from EU dataset the taxa identifed as contaminants
+```{r}
+# right format for df to merge
+tFMFinn_EU_clean <- as.data.frame(t(FMFinn_EU_clean_Rsum))
+tFMFinn_EU_clean <- tFMFinn_EU_clean %>% row_to_names(row_number = 1)
+tFMFinn_EU_clean <- tibble::rownames_to_column(tFMFinn_EU_clean, "Taxa")
+
+contam <- tibble::rownames_to_column(contam, "Taxa")
+
+contaminant <- contam %>%
+   dplyr::select(Taxa, contaminant)
+
+# merge contaminant column with EU dataset
+FMFinn_EU_contam <- left_join(tFMFinn_EU_clean, contaminant, by = "Taxa")
+
+# subset only non contaminants
+FMFinn_EU_decontam <- FMFinn_EU_contam %>%
+  subset(contaminant == "FALSE") %>%
+  dplyr::select(-contaminant)
+```
+
+
+#### Removing rare reads
+We need to decide if for the purposes of our project we want to select a treshold which is a percentage of the dataset (eg. 1 per thousand most abundant MOTUs) or an arbitrary number of MOTUs considered as predominant in the diet (eg. 50 most abundant MOTUs).
+```{r}
+# Erasing negative controls
+FMFinn_EU_decontam <- FMFinn_EU_decontam %>% 
+       select(-contains('NC'))
+
+# convert from character to numeric
+Taxa <- as.data.frame(FMFinn_EU_decontam$Taxa)
+FMFinn_EU_decontam <- as.data.frame(apply(FMFinn_EU_decontam[,-1], 2, as.numeric))
+FMFinn_EU_decontam <- cbind(Taxa, FMFinn_EU_decontam)
+names(FMFinn_EU_decontam)[1] = "Taxa"
+
+# creating a count column with the sum of the readings
+rf <- FMFinn_EU_decontam %>% rowwise(Taxa)
+FMFinn_EU_decontam <- rf %>% mutate(count = sum(c_across(where(is.numeric))))
+
+# ordering data by decreasing number of counts
+order(FMFinn_EU_decontam$count, decreasing = T)
+FMFinn_EU_decontam <- FMFinn_EU_decontam[order(FMFinn_EU_decontam$count, decreasing = T),]
+
+# keeping only first 50 most abundant MOTUs
+FMFinn_EU_50 <- FMFinn_EU_decontam[1:50, ]
+```
+
+
 #### Exporting dataframes
+
+Changing format
+```{r}
+# transposing
+tFMFinn_EU_50 <- as.data.frame(t(FMFinn_EU_50))
+tFMFinn_EU_50 <- tFMFinn_EU_50 %>% 
+  row_to_names(row_number = 1) 
+FMFinn_EU_final <- tFMFinn_EU_50[-41,] 
+#FMFinn_EU_final <- tibble::rownames_to_column(FMFinn_EU_final, "Sample_ID")
+```
+
+Exporting dataframes
 ```{r}
 # exporting the dataframe of our samples in csv format
-write.csv(FMFinn_EU_clean_Rsum, "outputs/FMFinn_EU_Sum.csv", row.names = F)
-write.csv(FMFinn_EU_clean_PCR, "outputs/FMFinn_EU_PCR.csv", row.names = F)
+write.csv(FMFinn_EU_final, "outputs/FMFinn_EU_final.csv", row.names = T)
+write.csv(FMFinn_EU_50, "outputs/FMFinn_EU_50.csv", row.names = F)
 ```
 
 
@@ -205,6 +279,7 @@ write.csv(FMFinn_EU_clean_PCR, "outputs/FMFinn_EU_PCR.csv", row.names = F)
 # importing .tab files (tab separated files)
 F_BR <- read.table(file = "data/F_BR.tab", header = T, sep = "\t")
 M_BR <- read.table(file = "data/M_BR.tab", header = T, sep = "\t")
+Finn_BR <- read.table(file = "data/Finn_BR.tab", header = T, sep = "\t")
 ```
 
 #### Erasing "obiclean" columns
@@ -214,6 +289,8 @@ F_BR <- F_BR %>%
   select(-(starts_with('obi')))
 M_BR <- M_BR %>% 
   select(-(starts_with('obi')))
+Finn_BR <- Finn_BR %>% 
+  dplyr::select(-(starts_with('obi')))
 ```
 
 #### Excluding MOTUs defined only as Eukaryota (superkingdom level) 
@@ -222,6 +299,8 @@ M_BR <- M_BR %>%
 F_BR <- F_BR %>% 
   subset(scientific_name!="Eukaryota")
 M_BR <- M_BR %>% 
+  subset(scientific_name!="Eukaryota")
+Finn_BR <- Finn_BR %>% 
   subset(scientific_name!="Eukaryota")
 ```
 
@@ -232,6 +311,8 @@ F_BR <- F_BR %>%
   subset(best_identity.db_BRYO>0.97)
 M_BR <- M_BR %>% 
   subset(best_identity.db_BRYO>0.97)
+Finn_BR <- Finn_BR %>% 
+  subset(best_identity.db_BRYO>0.97)
 ```
 
 #### Erasing not informative data
@@ -241,18 +322,24 @@ F_BR <- F_BR %>%
   subset(rank!="kingdom")
 M_BR <- M_BR %>% 
   subset(rank!="kingdom")
+Finn_BR <- Finn_BR %>% 
+  subset(rank!="kingdom")
 ```
 
 #### Subsetting and merging datasets for Bryophytes
 ```{r}
 # selecting only column from M_BR dataset with sequence and our samples
-M_BR_join <- M_BR %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3)
+M_BR_join <- M_BR %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3, sample.EXTRNC_168_R1, sample.EXTRNC_168_R3, sample.NC210618_R1, sample.NC210618_R3, sample.NC_MIX_137_R1, sample.NC_MIX_R1, sample.NC_MIX_137_R2, sample.NC_MIX_R3, sample.PCRNC_MIX_1_R1, sample.PCRNC_MIX_2_R1, sample.PCRNC_MIX_3_R1, sample.PCRNC_MIX_4_R1)
 
 # selecting only column from F_BR dataset with sequence, scientific name and our samples
-F_BR_join <- F_BR %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3)
+F_BR_join <- F_BR %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3, sample.NC2_FIN_R1, sample.NC_FIN_R3, sample.OANC2_R1)
+
+# selecting only column from Finn_BR dataset with sequence and our samples
+Finn_BR_join <- Finn_BR %>% select(sequence, sample.S1562_R1, sample.S1562_R2, sample.S1562_R3, sample.S1564_R1, sample.S1564_R2, sample.S1564_R3, sample.S1568_R1, sample.S1568_R2, sample.S1568_R3, sample.S1572_R1, sample.S1572_R2, sample.S1572_R3, sample.DNA_NC_F2_R1, sample.DNA_NC_F2_R3, sample.DNANCF11_R1, sample.DNANCF11_R2, sample.DNANCF11_R3, sample.DNANCF4_R1, sample.DNANCF4_R1, sample.DNANCF4_R2, sample.DNANCF4_R3, sample.PCRNCF4_R1, sample.PCRNCF4_R3)
 
 # merging F_BR and M_BR in one single FM_BR dataset
 FM_BR <- full_join(F_BR_join, M_BR_join, by = "sequence", copy = FALSE, keep = NULL)
+FM_BR <- full_join(FM_BR, Finn_BR_join, by = "sequence", copy = FALSE, keep = NULL)
 ```
 
 #### Dereplication of MOTUs with the same scientific name
@@ -260,7 +347,7 @@ FM_BR <- full_join(F_BR_join, M_BR_join, by = "sequence", copy = FALSE, keep = N
 # Check if we have duplicated scientific_name
 table(duplicated(FM_BR$scientific_name))
 
-# 3272 taxa names are duplicates
+# 3875  taxa names are duplicates
   
 # Dereplication by scientific_name
 FM_BR_derep <- FM_BR %>% 
@@ -272,68 +359,135 @@ FM_BR_derep <- FM_BR_derep %>% filter(row_number() <= n()-1)
 
 # replace all NA values with zero
 FM_BR_derep <- FM_BR_derep %>% replace(is.na(.), 0)
-
-# creating a count column with the sum of the readings
-rf <- FM_BR_derep %>% rowwise(scientific_name)
-rf <- rf %>% mutate(count = sum(c_across(sample.MS1P1Q2_SH135_R1:sample.REINS1P2Q3_S415_R3)))
-FM_BR_derep <- cbind(FM_BR_derep, count=rf$count)
-
-# Ordering data by decreasing number of counts
-order(FM_BR_derep$count, decreasing = T)
-FM_BR_derep <- FM_BR_derep[order(FM_BR_derep$count, decreasing = T),]
 ```
 
-#### Removing rare reads
-```{r}
-# keeping only first 50 most abundant MOTUs
-FM_BR_derep_cut <- FM_BR_derep
-FM_BR_derep_cut <- FM_BR_derep_cut %>% 
-  slice(1:50)
-
-```
 
 #### Resolving PCR replicates
 ```{r}
 # We exclude first column (scientific_name), transpose and convert the data matrix in dataframe
-FM_BR_derep_cut_R <- data.frame(t(FM_BR_derep_cut[,-1]))
+FM_BR_derep_R <- data.frame(t(FM_BR_derep[,-1]))
 # AND rename the table by scientific name
-names(FM_BR_derep_cut_R) <- FM_BR_derep_cut$scientific_name
+names(FM_BR_derep_R) <- FM_BR_derep$scientific_name
 
 # make sample names one of the columns of the data
-FM_BR_derep_cut_R <- FM_BR_derep_cut_R %>% 
+FM_BR_derep_R <- FM_BR_derep_R %>% 
   rownames_to_column("Sequencing_ID")
 
 # Prepare an id that represents all three replicates (by same name) and place that after "Sequencing_ID"
-FM_BR_derep_cut_R <- FM_BR_derep_cut_R %>% 
-  add_column(Sample_ID = str_replace_all(FM_BR_derep_cut_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+FM_BR_derep_R <- FM_BR_derep_R %>% 
+  add_column(Sample_ID = str_replace_all(FM_BR_derep_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
 
 # get read sum of all three replicates
-FM_BR_clean_Rsum <- FM_BR_derep_cut_R %>% 
+FM_BR_clean_Rsum <- FM_BR_derep_R %>% 
   select(-Sequencing_ID) %>% 
   group_by(Sample_ID) %>% 
   summarise_if(is.numeric, sum)
 # We have the read data in required format (Sample X Species)
 
 # Convert un-merged read data to 0 or 1, remove first two columns
-FM_BR_derep_cut_PCR <- data.frame(ifelse (FM_BR_derep_cut_R[,-c(1:2)]>0, 1, 0))
+#FM_BR_derep_PCR <- data.frame(ifelse (FM_BR_derep_R[,-c(1:2)]>0, 1, 0))
 
 # Combine with the first two columns of the previous data
-FM_BR_derep_cut_PCR <- cbind (FM_BR_derep_cut_R[,c(1:2)], FM_BR_derep_cut_PCR)
+#FM_BR_derep_PCR <- cbind (FM_BR_derep_R[,c(1:2)], FM_BR_derep_PCR)
 
 # Follow the steps used while generating read sums
-FM_BR_clean_PCR <- FM_BR_derep_cut_PCR %>% 
-  select(-Sequencing_ID) %>% 
-  group_by(Sample_ID) %>% 
-  summarise_if(is.numeric, sum)
-FM_BR_clean_PCR <- FM_BR_clean_PCR[-1,]
+#FM_BR_clean_PCR <- FM_BR_derep_PCR %>% 
+#  select(-Sequencing_ID) %>% 
+#  group_by(Sample_ID) %>% 
+#  summarise_if(is.numeric, sum)
+#FM_BR_clean_PCR <- FM_BR_clean_PCR[-1,]
 # We have the frequency data in required format (Sample X Species)
 ```
 
+
+#### Identifying contaminants in marker-gene data
+
+Creating metadata dataframe with a Sample_or_Control column for running decontam function
+```{r}
+FMFinn_BR_meta <- as.data.frame(FM_BR_clean_Rsum$Sample_ID)
+names(FMFinn_BR_meta) <- "Sample_ID"
+
+FMFinn_BR_meta$Sample_or_Control <- "True Sample"
+FMFinn_BR_meta$Sample_or_Control[grepl("NC", FMFinn_BR_meta$Sample_ID)] <- "Control Sample"
+
+FMFinn_BR_meta <- FMFinn_BR_meta[-1,]
+```
+
+Creating phyloseq object
+```{r}
+BR_to_ps <- as.data.frame(FM_BR_clean_Rsum[-1,])
+
+# first column to rowname
+row.names(BR_to_ps) <- BR_to_ps$Sample_ID
+BR_to_ps <- BR_to_ps[,-1]
+
+ps_BR <- phyloseq(otu_table(BR_to_ps, taxa_are_rows=T))
+```
+
+Identify Contaminants - with Prevalence method
+```{r}
+neg2 <- FMFinn_BR_meta$Sample_or_Control == 'Control Sample' # True if a negative control sample
+
+# Prevalence-based contaminant classification
+contam2 <- isContaminant(as.matrix(ps_BR), neg=neg2, threshold=0.1, detailed=TRUE, normalize=TRUE, method='prevalence')
+
+table(contam2$contaminant)
+```
+
+Erasing from EU dataset the taxa identifed as contaminants
+```{r}
+# transposing
+tFMFinn_BR_clean <- as.data.frame(t(FM_BR_clean_Rsum))
+tFMFinn_BR_clean <- tFMFinn_BR_clean %>% row_to_names(row_number = 1)
+tFMFinn_BR_clean <- tibble::rownames_to_column(tFMFinn_BR_clean, "Taxa")
+
+# no contaminants
+FMFinn_BR_decontam <- tFMFinn_BR_clean
+```
+
+
+#### Removing rare reads
+```{r}
+# Erasing negative controls
+FMFinn_BR_decontam <- FMFinn_BR_decontam %>% 
+       select(-contains('NC'))
+
+# convert from character to numeric
+Taxa <- as.data.frame(FMFinn_BR_decontam$Taxa)
+FMFinn_BR_decontam <- as.data.frame(apply(FMFinn_BR_decontam[,-1], 2, as.numeric))
+FMFinn_BR_decontam <- cbind(Taxa, FMFinn_BR_decontam)
+names(FMFinn_BR_decontam)[1] = "Taxa"
+
+# creating a count column with the sum of the readings
+rf <- FMFinn_BR_decontam %>% rowwise(Taxa)
+FMFinn_BR_decontam <- rf %>% mutate(count = sum(c_across(where(is.numeric))))
+
+# ordering data by decreasing number of counts
+order(FMFinn_BR_decontam$count, decreasing = T)
+FMFinn_BR_decontam <- FMFinn_BR_decontam[order(FMFinn_BR_decontam$count, decreasing = T),]
+
+# keeping only first 50 most abundant MOTUs
+FMFinn_BR_50 <- FMFinn_BR_decontam[1:50, ]
+```
+
+
 #### Exporting dataframes
+
+Changing format
+```{r}
+# transposing
+tFMFinn_BR_50 <- as.data.frame(t(FMFinn_BR_50))
+tFMFinn_BR_50 <- tFMFinn_BR_50 %>% 
+  row_to_names(row_number = 1) 
+FMFinn_BR_final <- tFMFinn_BR_50[-41,] 
+#FMFinn_BR_final <- tibble::rownames_to_column(FMFinn_BR_final, "Sample_ID")
+```
+
+Exporting dataframes
 ```{r}
 # exporting the dataframe of our samples in csv format
-write.csv(FM_BR_clean_Rsum, "outputs/FM_BR_Sum.csv", row.names = F)
-write.csv(FM_BR_clean_PCR, "outputs/FM_BR_PCR.csv", row.names = F)
+write.csv(FMFinn_BR_final, "outputs/FMFinn_BR_final.csv", row.names = T)
+write.csv(FMFinn_BR_50, "outputs/FMFinn_BR_50.csv", row.names = F)
 ```
 
 
@@ -345,6 +499,7 @@ write.csv(FM_BR_clean_PCR, "outputs/FM_BR_PCR.csv", row.names = F)
 # importing .tab files (tab separated files)
 F_FU <- read.table(file = "data/F_FU.tab", header = T, sep = "\t")
 M_FU <- read.table(file = "data/M_FU.tab", header = T, sep = "\t")
+Finn_FU <- read.table(file = "data/Finn_FU.tab", header = T, sep = "\t")
 ```
 
 #### Erasing "obiclean" columns
@@ -353,6 +508,8 @@ M_FU <- read.table(file = "data/M_FU.tab", header = T, sep = "\t")
 F_FU <- F_FU %>% 
   select(-(starts_with('obi')))
 M_FU <- M_FU %>% 
+  select(-(starts_with('obi')))
+Finn_FU <- Finn_FU %>% 
   select(-(starts_with('obi')))
 ```
 
@@ -363,6 +520,8 @@ F_FU <- F_FU %>%
   subset(scientific_name!="Eukaryota")
 M_FU <- M_FU %>% 
   subset(scientific_name!="Eukaryota")
+Finn_FU <- Finn_FU %>% 
+  subset(scientific_name!="Eukaryota")
 ```
 
 #### Filtering data that has less than 97% identity with the Fungi reference dataset
@@ -371,6 +530,8 @@ M_FU <- M_FU %>%
 F_FU <- F_FU %>% 
   subset(best_identity.db_FUNGI>0.97)
 M_FU <- M_FU %>% 
+  subset(best_identity.db_FUNGI>0.97)
+Finn_FU <- Finn_FU %>% 
   subset(best_identity.db_FUNGI>0.97)
 ```
 
@@ -381,18 +542,24 @@ F_FU <- F_FU %>%
   subset(rank!="kingdom")
 M_FU <- M_FU %>% 
   subset(rank!="kingdom")
+Finn_FU <- Finn_FU %>% 
+  subset(rank!="kingdom")
 ```
 
 #### Subsetting and merging datasets for Fungi
 ```{r}
 # selecting only column from M_FU dataset with sequence and our samples
-M_FU_join <- M_FU %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q2_S413_R2, sample.REINS1P2Q3_S415_R2, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3)
+M_FU_join <- M_FU %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q2_S413_R2, sample.REINS1P2Q3_S415_R2, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3, sample.EXTRNC_168_R1, sample.EXTRNC_168_R2, sample.EXTRNC_168_R3, sample.NC210618_R1, sample.NC210618_R2, sample.NC_MIX_137_R1, sample.NC_MIX_137_R2, sample.NC_MIX_137_R3, sample.NC_MIX_R1, sample.NC_MIX_R3, sample.PCRNC_MIX_1_R3, sample.PCRNC_MIX_2_R2)
 
 # selecting only column from F_FU dataset with sequence, scientific name and our samples
-F_FU_join <- F_FU %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3)
+F_FU_join <- F_FU %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3, sample.NC2_FIN_R1, sample.NC2_FIN_R2, sample.NC2_FIN_R3, sample.NC3_FIN_R1, sample.NC3_FIN_R2, sample.NC3_FIN_R3, sample.NC5_FIN_R1, sample.NC5_FIN_R2, sample.NC5_FIN_R3, sample.NC6_FIN_R1, sample.NC6_FIN_R2, sample.NC6_FIN_R3, sample.NC_FIN_R1, sample.NC_FIN_R2, sample.NC_FIN_R3, sample.PCRNC3_FIN_R1, sample.PCRNC3_FIN_R2)
 
-# merging F_BR and M_BR in one single FM_BR dataset
+# selecting only column from Finn_FU dataset with sequence and our samples
+Finn_FU_join <- Finn_FU %>% select(sequence, sample.S1562_R1, sample.S1562_R2, sample.S1562_R3, sample.S1564_R1, sample.S1564_R2, sample.S1564_R3, sample.S1568_R1, sample.S1568_R2, sample.S1568_R3, sample.S1572_R1, sample.S1572_R2, sample.S1572_R3, sample.DNANCF12_R1, sample.DNANCF12_R2, sample.DNANCF12_R3, sample.DNANCF5_R1, sample.DNANCF5_R2, sample.DNANCF5_R3, sample.DNANCF8_R1, sample.DNANCF8_R2, sample.DNANCF8_R3, sample.PCRNCF4_R1, sample.PCRNCF4_R2)
+
+# merging F_EU and M_EU in one single FM_EU dataset
 FM_FU <- full_join(F_FU_join, M_FU_join, by = "sequence", copy = FALSE, keep = NULL)
+FM_FU <- full_join(FM_FU, Finn_FU_join, by = "sequence", copy = FALSE, keep = NULL)
 ```
 
 #### Dereplication of MOTUs with the same scientific name
@@ -412,68 +579,146 @@ FM_FU_derep <- FM_FU_derep %>% filter(row_number() <= n()-1)
 
 # replace all NA values with zero
 FM_FU_derep <- FM_FU_derep %>% replace(is.na(.), 0)
-
-# creating a count column with the sum of the readings
-rf <- FM_FU_derep %>% rowwise(scientific_name)
-rf <- rf %>% mutate(count = sum(c_across(sample.MS1P1Q2_SH135_R1:sample.REINS1P2Q3_S415_R3)))
-FM_FU_derep <- cbind(FM_FU_derep, count=rf$count)
-
-# Ordering data by decreasing number of counts
-order(FM_FU_derep$count, decreasing = T)
-FM_FU_derep <- FM_FU_derep[order(FM_FU_derep$count, decreasing = T),]
 ```
 
-#### Removing rare reads
-```{r}
-# keeping only first 50 most abundant MOTUs
-FM_FU_derep_cut <- FM_FU_derep
-FM_FU_derep_cut <- FM_FU_derep_cut %>% 
-  slice(1:50)
-
-```
 
 #### Resolving PCR replicates
 ```{r}
 # We exclude first column (scientific_name), transpose and convert the data matrix in dataframe
-FM_FU_derep_cut_R <- data.frame(t(FM_FU_derep_cut[,-1]))
+FM_FU_derep_R <- data.frame(t(FM_FU_derep[,-1]))
 # AND rename the table by scientific name
-names(FM_FU_derep_cut_R) <- FM_FU_derep_cut$scientific_name
+names(FM_FU_derep_R) <- FM_FU_derep$scientific_name
 
 # make sample names one of the columns of the data
-FM_FU_derep_cut_R <- FM_FU_derep_cut_R %>% 
+FM_FU_derep_R <- FM_FU_derep_R %>% 
   rownames_to_column("Sequencing_ID")
 
 # Prepare an id that represents all three replicates (by same name) and place that after "Sequencing_ID"
-FM_FU_derep_cut_R <- FM_FU_derep_cut_R %>% 
-  add_column(Sample_ID = str_replace_all(FM_FU_derep_cut_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+FM_FU_derep_R <- FM_FU_derep_R %>% 
+  add_column(Sample_ID = str_replace_all(FM_FU_derep_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
 
 # get read sum of all three replicates
-FM_FU_clean_Rsum <- FM_FU_derep_cut_R %>% 
+FM_FU_clean_Rsum <- FM_FU_derep_R %>% 
   select(-Sequencing_ID) %>% 
   group_by(Sample_ID) %>% 
   summarise_if(is.numeric, sum)
 # We have the read data in required format (Sample X Species)
 
 # Convert un-merged read data to 0 or 1, remove first two columns
-FM_FU_derep_cut_PCR <- data.frame(ifelse (FM_FU_derep_cut_R[,-c(1:2)]>0, 1, 0))
+#FM_FU_derep_PCR <- data.frame(ifelse (FM_FU_derep_R[,-c(1:2)]>0, 1, 0))
 
 # Combine with the first two columns of the previous data
-FM_FU_derep_cut_PCR <- cbind(FM_FU_derep_cut_R[,c(1:2)], FM_FU_derep_cut_PCR)
+#FM_FU_derep_PCR <- cbind(FM_FU_derep_R[,c(1:2)], FM_FU_derep_PCR)
 
 # Follow the steps used while generating read sums
-FM_FU_clean_PCR <- FM_FU_derep_cut_PCR %>% 
-  select(-Sequencing_ID) %>% 
-  group_by(Sample_ID) %>% 
-  summarise_if(is.numeric, sum)
-FM_FU_clean_PCR <- FM_FU_clean_PCR[-1,]
+#FM_FU_clean_PCR <- FM_FU_derep_PCR %>% 
+#  select(-Sequencing_ID) %>% 
+#  group_by(Sample_ID) %>% 
+#  summarise_if(is.numeric, sum)
+#FM_FU_clean_PCR <- FM_FU_clean_PCR[-1,]
 # We have the frequency data in required format (Sample X Species)
 ```
 
+
+#### Identifying contaminants in marker-gene data
+
+Creating FMFinn_EU metadata dataframe with a Sample_or_Control column for running decontam function
+```{r}
+FMFinn_FU_meta <- as.data.frame(FM_FU_clean_Rsum$Sample_ID)
+names(FMFinn_FU_meta) <- "Sample_ID"
+
+FMFinn_FU_meta$Sample_or_Control <- "True Sample"
+FMFinn_FU_meta$Sample_or_Control[grepl("NC", FMFinn_FU_meta$Sample_ID)] <- "Control Sample"
+
+FMFinn_FU_meta <- FMFinn_FU_meta[-1,]
+```
+
+Creating phyloseq object
+```{r}
+FU_to_ps <- as.data.frame(FM_FU_clean_Rsum[-1,])
+
+# first column to rowname
+row.names(FU_to_ps) <- FU_to_ps$Sample_ID
+FU_to_ps <- FU_to_ps[,-1]
+
+ps_FU <- phyloseq(otu_table(FU_to_ps, taxa_are_rows=T))
+```
+
+Identify Contaminants - with Prevalence method
+```{r}
+neg3 <- FMFinn_FU_meta$Sample_or_Control == 'Control Sample' # True if a negative control sample
+
+# Prevalence-based contaminant classification
+contam3 <- isContaminant(as.matrix(ps_FU), neg=neg3, threshold=0.1, detailed=TRUE, normalize=TRUE, method='prevalence')
+
+table(contam3$contaminant)
+```
+
+Erasing from FU dataset the taxa identifed as contaminants
+```{r}
+# right format for df to merge
+tFMFinn_FU_clean <- as.data.frame(t(FM_FU_clean_Rsum))
+tFMFinn_FU_clean <- tFMFinn_FU_clean %>% row_to_names(row_number = 1)
+tFMFinn_FU_clean <- tibble::rownames_to_column(tFMFinn_FU_clean, "Taxa")
+
+contam3 <- tibble::rownames_to_column(contam3, "Taxa")
+
+contaminant3 <- contam3 %>%
+   dplyr::select(Taxa, contaminant)
+
+# merge contaminant column with EU dataset
+FMFinn_FU_contam <- left_join(tFMFinn_FU_clean, contaminant3, by = "Taxa")
+
+# subset only non contaminants
+FMFinn_FU_decontam <- FMFinn_FU_contam %>%
+  subset(contaminant == "FALSE") %>%
+  dplyr::select(-contaminant)
+```
+
+
+#### Removing rare reads
+We need to decide if for the purposes of our project we want to select a treshold which is a percentage of the dataset (eg. 1 per thousand most abundant MOTUs) or an arbitrary number of MOTUs considered as predominant in the diet (eg. 50 most abundant MOTUs).
+```{r}
+# Erasing negative controls
+FMFinn_FU_decontam <- FMFinn_FU_decontam %>% 
+       select(-contains('NC'))
+
+# convert from character to numeric
+Taxa <- as.data.frame(FMFinn_FU_decontam$Taxa)
+FMFinn_FU_decontam <- as.data.frame(apply(FMFinn_FU_decontam[,-1], 2, as.numeric))
+FMFinn_FU_decontam <- cbind(Taxa, FMFinn_FU_decontam)
+names(FMFinn_FU_decontam)[1] = "Taxa"
+
+# creating a count column with the sum of the readings
+rf <- FMFinn_FU_decontam %>% rowwise(Taxa)
+FMFinn_FU_decontam <- rf %>% mutate(count = sum(c_across(where(is.numeric))))
+
+# ordering data by decreasing number of counts
+order(FMFinn_FU_decontam$count, decreasing = T)
+FMFinn_FU_decontam <- FMFinn_FU_decontam[order(FMFinn_FU_decontam$count, decreasing = T),]
+
+# keeping only first 50 most abundant MOTUs
+FMFinn_FU_50 <- FMFinn_FU_decontam[1:50, ]
+```
+
+
 #### Exporting dataframes
+
+Changing format
+```{r}
+# transposing
+tFMFinn_FU_50 <- as.data.frame(t(FMFinn_FU_50))
+tFMFinn_FU_50 <- tFMFinn_FU_50 %>% 
+  row_to_names(row_number = 1) 
+FMFinn_FU_final <- tFMFinn_FU_50[-41,] 
+#FMFinn_FU_final <- tibble::rownames_to_column(FMFinn_FU_final, "Sample_ID")
+```
+
+Exporting dataframes
 ```{r}
 # exporting the dataframe of our samples in csv format
-write.csv(FM_FU_clean_Rsum, "outputs/FM_FU_Sum.csv", row.names = F)
-write.csv(FM_FU_clean_PCR, "outputs/FM_FU_PCR.csv", row.names = F)
+write.csv(FMFinn_FU_final, "outputs/FMFinn_FU_final.csv", row.names = T)
+write.csv(FMFinn_FU_50, "outputs/FMFinn_FU_50.csv", row.names = F)
 ```
 
 
@@ -535,13 +780,13 @@ Finn_GH <- Finn_GH %>%
 #### Subsetting and merging datasets for Plants
 ```{r}
 # selecting only column from M_GH dataset with sequence and our samples
-M_GH_join <- M_GH %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R2, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3)
+M_GH_join <- M_GH %>% select(sequence, sample.REINS1P2Q2_S413_R1, sample.REINS1P2Q2_S413_R2, sample.REINS1P2Q2_S413_R3, sample.REINS1P2Q3_S415_R1, sample.REINS1P2Q3_S415_R3, sample.DNANC_140_R1, sample.DNANC_140_R2, sample.DNANC_140_R3, sample.NC210618_R1, sample.NC210618_R2, sample.NC210618_R3, sample.EXTRNC_168_R1, sample.EXTRNC_168_R2, sample.EXTRNC_168_R3, sample.NC_MIX_137_R1, sample.NC_MIX_137_R2, sample.NC_MIX_137_R3, sample.PCRNC_MIX_2_R1, sample.PCRNC_MIX_2_R2, sample.PCRNC_MIX_2_R3)
 
 # selecting only column from F_GH dataset with sequence, scientific name and our samples
-F_GH_join <- F_GH %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3)
+F_GH_join <- F_GH %>% select(sequence, scientific_name, sample.MS1P1Q2_SH135_R1, sample.MS1P1Q2_SH135_R2, sample.MS1P1Q2_SH135_R3, sample.MS1P2Q2_SH164_R2, sample.MS1P2Q2_SH164_R3 , sample.MS1P2Q4_SH134_R1, sample.MS1P2Q4_SH134_R2, sample.MS1P2Q4_SH134_R3, sample.MS1P2Q4_SH136_R1, sample.MS1P2Q4_SH136_R2, sample.MS1P2Q4_SH136_R3, sample.MS1P3Q1_SH132_R1, sample.MS1P3Q1_SH132_R2, sample.MS1P3Q1_SH132_R3, sample.MS1P3Q1_SH133_R1, sample.MS1P3Q1_SH133_R2, sample.MS1P3Q1_SH133_R3, sample.MS2P1Q1_SH195_R1, sample.MS2P1Q1_SH195_R2, sample.MS2P1Q1_SH195_R3, sample.MS2P2Q1_SH196_R1, sample.MS2P2Q1_SH196_R2, sample.MS2P2Q1_SH196_R3, sample.HS1P1Q4_SH137_R1, sample.HS1P1Q4_SH137_R2, sample.HS1P1Q4_SH137_R3, sample.HS2P1Q3_SH193_R1, sample.HS2P1Q3_SH193_R2, sample.HS2P1Q3_SH193_R3, sample.HS2P2Q2_SH194_R1, sample.HS2P2Q2_SH194_R2, sample.HS2P2Q2_SH194_R3, sample.HS2P2Q3_SH138_R1, sample.HS2P2Q3_SH138_R2, sample.HS2P2Q3_SH138_R3, sample.HS2P2Q3_SH190_R1, sample.HS2P2Q3_SH190_R2, sample.HS2P2Q3_SH190_R3, sample.HS2P2Q3_SH192_R1, sample.HS2P2Q3_SH192_R2, sample.HS2P2Q3_SH192_R3, sample.HS2P3Q3_SH140_R1, sample.HS2P3Q3_SH140_R2, sample.HS2P3Q3_SH140_R3, sample.HS2P3Q4_SH139_R1, sample.HS2P3Q4_SH139_R2, sample.HS2P3Q4_SH139_R3, sample.PS2P1Q3_SH80_R1, sample.PS2P1Q3_SH80_R2, sample.PS2P1Q3_SH80_R3, sample.PS2P2Q2_SH100_R1, sample.PS2P2Q2_SH100_R2, sample.PS2P2Q2_SH100_R3, sample.PS2P2Q2_SH186_R1, sample.PS2P2Q2_SH186_R2, sample.PS2P2Q2_SH186_R3, sample.PS2P2Q2_SH81_R1, sample.PS2P2Q2_SH81_R2, sample.PS2P2Q2_SH81_R3, sample.PS2P2Q3_SH115_R1, sample.PS2P2Q3_SH115_R2, sample.PS2P2Q3_SH115_R3, sample.PS2P2Q4_SH113_R1, sample.PS2P2Q4_SH113_R2, sample.PS2P2Q4_SH113_R3, sample.PS2P2Q4_SH98_R1, sample.PS2P2Q4_SH98_R2, sample.PS2P2Q4_SH98_R3, sample.PS2P3Q3_SH99_R1, sample.PS2P3Q3_SH99_R2, sample.PS2P3Q3_SH99_R3, sample.RS1P2Q2_SH124_R1,  sample.RS1P2Q2_SH124_R2,  sample.RS1P2Q2_SH124_R3, sample.RS1P2Q1_SH106_R1, sample.RS1P2Q1_SH106_R2, sample.RS1P2Q1_SH106_R3, sample.RS2P1Q1_SH129_R1, sample.RS2P1Q1_SH129_R2, sample.RS2P1Q1_SH129_R3, sample.RS2P1Q2_SH93_R1, sample.RS2P1Q2_SH93_R2, sample.RS2P1Q2_SH93_R3, sample.RS2P2Q3_SH127_R1, sample.RS2P2Q3_SH127_R2, sample.RS2P2Q3_SH127_R3, sample.RS2P2Q4_SH130_R1, sample.RS2P2Q4_SH130_R2, sample.RS2P2Q4_SH130_R3, sample.RS2P2Q4_SH172_R1, sample.RS2P2Q4_SH172_R2, sample.RS2P2Q4_SH172_R3, sample.RS2P2Q4_SH176_R1, sample.RS2P2Q4_SH176_R2, sample.RS2P2Q4_SH176_R3, sample.REINS1P1Q5_S412_R1, sample.REINS1P1Q5_S412_R2, sample.REINS1P1Q5_S412_R3, sample.REINS1P2Q45_S414_R1, sample.REINS1P2Q45_S414_R3, sample.NC2_FIN_R1, sample.NC2_FIN_R2, sample.NC2_FIN_R3, sample.NC5_FIN_R1, sample.NC5_FIN_R2, sample.NC5_FIN_R3, sample.OANC2_R1, sample.OANC2_R2, sample.OANC2_R3, sample.NC3_FIN_R1, sample.NC4_FIN_R1, sample.NC_FIN_R1, sample.OANC_R1)
 
 # selecting only column from Finn_GH dataset with sequence and our samples
-Finn_GH_join <- Finn_GH %>% select(sequence, sample.S1562_R1, sample.S1562_R2, sample.S1562_R3, sample.S1564_R1, sample.S1564_R2, sample.S1564_R3, sample.S1568_R1, sample.S1568_R2, sample.S1568_R3, sample.S1572_R1, sample.S1572_R2, sample.S1572_R3)
+Finn_GH_join <- Finn_GH %>% select(sequence, sample.S1562_R1, sample.S1562_R2, sample.S1562_R3, sample.S1564_R1, sample.S1564_R2, sample.S1564_R3, sample.S1568_R1, sample.S1568_R2, sample.S1568_R3, sample.S1572_R1, sample.S1572_R2, sample.S1572_R3, sample.DNANCF12_R2, sample.DNANCF12_R2, sample.DNANCF2_R2, sample.DNANCF2_R2, sample.DNANCF5_R2, sample.DNANCF5_R3, sample.PCRNCF1_R3, sample.PCRNCF3_R1, sample.PCRNCF5_R1, sample.PCRNCF8_R1)
 
 # merging F_BR and M_BR in one single FM_BR dataset
 FM_GH <- full_join(F_GH_join, M_GH_join, by = "sequence", copy = FALSE, keep = NULL)
@@ -565,67 +810,162 @@ FMFinn_GH_derep <- FMFinn_GH_derep %>% filter(row_number() <= n()-1)
 
 # replace all NA values with zero
 FMFinn_GH_derep <- FMFinn_GH_derep %>% replace(is.na(.), 0)
-
-# creating a count column with the sum of the readings
-rf <- FMFinn_GH_derep %>% rowwise(scientific_name)
-rf <- rf %>% mutate(count = sum(c_across(sample.MS1P1Q2_SH135_R1:sample.REINS1P2Q3_S415_R3)))
-FMFinn_GH_derep <- cbind(FMFinn_GH_derep, count=rf$count)
-
-# Ordering data by decreasing number of counts
-order(FMFinn_GH_derep$count, decreasing = T)
-FMFinn_GH_derep <- FMFinn_GH_derep[order(FMFinn_GH_derep$count, decreasing = T),]
 ```
 
-#### Removing rare reads
-```{r}
-# keeping only first 50 most abundant MOTUs
-FMFinn_GH_derep_cut <- FMFinn_GH_derep
-FMFinn_GH_derep_cut <- FMFinn_GH_derep_cut %>% 
-  slice(1:50)
-
-```
 
 #### Resolving PCR replicates
 ```{r}
 # We exclude first column (scientific_name), transpose and convert the data matrix in dataframe
-FMFinn_GH_derep_cut_R <- data.frame(t(FMFinn_GH_derep_cut[,-1]))
+FMFinn_GH_derep_R <- data.frame(t(FMFinn_GH_derep[,-1]))
 # AND rename the table by scientific name
-names(FMFinn_GH_derep_cut_R) <- FMFinn_GH_derep_cut$scientific_name
+names(FMFinn_GH_derep_R) <- FMFinn_GH_derep$scientific_name
 
 # make sample names one of the columns of the data
-FMFinn_GH_derep_cut_R <- FMFinn_GH_derep_cut_R %>% 
+FMFinn_GH_derep_R <- FMFinn_GH_derep_R %>% 
   rownames_to_column("Sequencing_ID")
 
 # Prepare an id that represents all three replicates (by same name) and place that after "Sequencing_ID"
-FMFinn_GH_derep_cut_R <- FMFinn_GH_derep_cut_R %>% 
-  add_column(Sample_ID = str_replace_all(FMFinn_GH_derep_cut_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+FMFinn_GH_derep_R <- FMFinn_GH_derep_R %>% 
+  add_column(Sample_ID = str_replace_all(FMFinn_GH_derep_R$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
 
 # get read sum of all three replicates
-FMFinn_GH_clean_Rsum <- FMFinn_GH_derep_cut_R %>% 
+FMFinn_GH_clean_Rsum <- FMFinn_GH_derep_R %>% 
   select(-Sequencing_ID) %>% 
   group_by(Sample_ID) %>% 
   summarise_if(is.numeric, sum)
 # We have the read data in required format (Sample X Species)
 
 # Convert un-merged read data to 0 or 1, remove first two columns
-FMFinn_GH_derep_cut_PCR <- data.frame(ifelse (FMFinn_GH_derep_cut_R[,-c(1:2)]>0, 1, 0))
+#FMFinn_GH_derep_PCR <- data.frame(ifelse (FMFinn_GH_derep_R[,-c(1:2)]>0, 1, 0))
 
 # Combine with the first two columns of the previous data
-FMFinn_GH_derep_cut_PCR <- cbind(FMFinn_GH_derep_cut_R[,c(1:2)], FMFinn_GH_derep_cut_PCR)
+#FMFinn_GH_derep_PCR <- cbind(FMFinn_GH_derep_R[,c(1:2)], FMFinn_GH_derep_PCR)
 
 # Follow the steps used while generating read sums
-FMFinn_GH_clean_PCR <- FMFinn_GH_derep_cut_PCR %>% 
-  select(-Sequencing_ID) %>% 
-  group_by(Sample_ID) %>% 
-  summarise_if(is.numeric, sum)
-FMFinn_GH_clean_PCR <- FMFinn_GH_clean_PCR[-1,]
+#FMFinn_GH_clean_PCR <- FMFinn_GH_derep_PCR %>% 
+#  select(-Sequencing_ID) %>% 
+#  group_by(Sample_ID) %>% 
+#  summarise_if(is.numeric, sum)
+#FMFinn_GH_clean_PCR <- FMFinn_GH_clean_PCR[-1,]
 # We have the frequency data in required format (Sample X Species)
 ```
 
+
+#### Identifying contaminants in marker-gene data
+
+Creating metadata dataframe with a Sample_or_Control column for running decontam function
+```{r}
+FMFinn_GH_meta <- as.data.frame(FMFinn_GH_clean_Rsum$Sample_ID)
+names(FMFinn_GH_meta) <- "Sample_ID"
+
+FMFinn_GH_meta$Sample_or_Control <- "True Sample"
+FMFinn_GH_meta$Sample_or_Control[grepl("NC", FMFinn_GH_meta$Sample_ID)] <- "Control Sample"
+
+FMFinn_GH_meta <- FMFinn_GH_meta[-1,]
+```
+
+Creating phyloseq object
+```{r}
+GH_to_ps <- as.data.frame(FMFinn_GH_clean_Rsum[-1,])
+
+# first column to rowname
+row.names(GH_to_ps) <- GH_to_ps$Sample_ID
+GH_to_ps <- GH_to_ps[,-1]
+
+ps_GH <- phyloseq(otu_table(GH_to_ps, taxa_are_rows=T))
+```
+
+Identify Contaminants - with Prevalence method
+```{r}
+neg4 <- FMFinn_GH_meta$Sample_or_Control == 'Control Sample' # True if a negative control sample
+
+# Prevalence-based contaminant classification
+contam4 <- isContaminant(as.matrix(ps_GH), neg=neg4, threshold=0.1, detailed=TRUE, normalize=TRUE, method='prevalence')
+
+table(contam4$contaminant)
+```
+
+Erasing from EU dataset the taxa identifed as contaminants
+```{r}
+# right format for df to merge
+tFMFinn_GH_clean <- as.data.frame(t(FMFinn_GH_clean_Rsum))
+tFMFinn_GH_clean <- tFMFinn_GH_clean %>% row_to_names(row_number = 1)
+tFMFinn_GH_clean <- tibble::rownames_to_column(tFMFinn_GH_clean, "Taxa")
+
+contam4 <- tibble::rownames_to_column(contam4, "Taxa")
+
+contaminant4 <- contam4 %>%
+   dplyr::select(Taxa, contaminant)
+
+# merge contaminant column with EU dataset
+FMFinn_GH_contam <- left_join(tFMFinn_GH_clean, contaminant4, by = "Taxa")
+
+# subset only non contaminants
+FMFinn_GH_decontam <- FMFinn_GH_contam %>%
+  subset(contaminant == "FALSE") %>%
+  dplyr::select(-contaminant)
+```
+
+
+#### Removing rare reads
+```{r}
+# Erasing negative controls
+FMFinn_GH_decontam <- FMFinn_GH_decontam %>% 
+       select(-contains('NC'))
+
+# convert from character to numeric
+Taxa <- as.data.frame(FMFinn_GH_decontam$Taxa)
+FMFinn_GH_decontam <- as.data.frame(apply(FMFinn_GH_decontam[,-1], 2, as.numeric))
+FMFinn_GH_decontam <- cbind(Taxa, FMFinn_GH_decontam)
+names(FMFinn_GH_decontam)[1] = "Taxa"
+
+# creating a count column with the sum of the readings
+rf <- FMFinn_GH_decontam %>% rowwise(Taxa)
+FMFinn_GH_decontam <- rf %>% mutate(count = sum(c_across(where(is.numeric))))
+
+# ordering data by decreasing number of counts
+order(FMFinn_GH_decontam$count, decreasing = T)
+FMFinn_GH_decontam <- FMFinn_GH_decontam[order(FMFinn_GH_decontam$count, decreasing = T),]
+
+# keeping only first 50 most abundant MOTUs
+FMFinn_GH_50 <- FMFinn_GH_decontam[1:50, ]
+```
+
+
 #### Exporting dataframes
+
+Changing format
+```{r}
+# transposing
+tFMFinn_GH_50 <- as.data.frame(t(FMFinn_GH_50))
+tFMFinn_GH_50 <- tFMFinn_GH_50 %>% 
+  row_to_names(row_number = 1) 
+FMFinn_GH_final <- tFMFinn_GH_50[-41,] 
+#FMFinn_GH_final <- tibble::rownames_to_column(FMFinn_GH_final, "Sample_ID")
+```
+
+Exporting dataframes
 ```{r}
 # exporting the dataframe of our samples in csv format
-write.csv(FMFinn_GH_clean_Rsum, "outputs/FMFinn_GH_Sum.csv", row.names = F)
-write.csv(FMFinn_GH_clean_PCR, "outputs/FMFinn_GH_PCR.csv", row.names = F)
+write.csv(FMFinn_GH_final, "outputs/FMFinn_GH_final.csv", row.names = T)
+write.csv(FMFinn_GH_50, "outputs/FMFinn_GH_50.csv", row.names = F)
 ```
+
+
+#### Creating categories: plants
+```{r}
+# import csv file with Categories
+GH_Cat <- read.csv("data/plant_cat.csv", header = T, sep = ";")
+
+# order levels of factor
+GH_Cat$category <- factor(GH_Cat$category, 
+                        levels=c("Betula","Fern","Forb","Graminoid", "Moss", "Salicacea", "Shrub", "Tree","Vaccinium"))
+GH_Cat$category <- factor(GH_Cat$category, levels = rev(levels(GH_Cat$category)))
+
+# substitute spaces with underscores
+GH_Cat$taxa <- gsub(pattern = "\\ ", replacement="_", 
+          x=GH_Cat$taxa )
+```
+
+
 
