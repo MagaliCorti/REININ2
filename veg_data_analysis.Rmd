@@ -12,37 +12,80 @@ I will use as input the four filtered datasets containig the data about the bost
 
 Loading packages
 ```{r message=FALSE, warning=FALSE, results='hide'}
-# install.packages("pacman")
-library(tidyverse)
-library(pacman)
-pacman::p_load("car","MASS","dplyr","tidyr","reshape2","vegan","ggplot2",
-               "picante","indicspecies","lme4","lmtest","multcomp","grid","phyloseq",
-               "Biostrings","QsRutils","phangorn","ape","pheatmap","stringr",
-               "dada2","DECIPHER","gridExtra","furrr","harrietr","ggtree",
-               "ppcor")
-
-#library(harrietr); library(ggtree); library(ppcor)
+# install.packages("Rtools")
+packages <- c("tidyverse","reshape2", "vegan", "stringr", "gridExtra", "ape", "RColorBrewer", "knitr","cowplot","openxlsx","circlize","plotly","phyloseq","decontam","ComplexHeatmap","car","tidyr","picante","indicspecies","lme4","lmtest","multcomp","grid","Biostrings","QsRutils","phangorn","pheatmap","dada2","DECIPHER","furrr","harrietr","ggtree","ppcor","devtools","Rtools","pairwiseAdonis","mvabund", "glue", "factoextra", "viridis")
+sapply(packages, require, character.only = TRUE)
 ```
 
 Importing data
 ```{r}
-# importing dataframes
-EU <- read.csv(file = "outputs/FMFinn_EU_Sum.csv", header = T)
-GH <- read.csv(file = "outputs/FMFinn_GH_Sum.csv", header = T)
-BR <- read.csv(file = "outputs/FM_BR_Sum.csv", header = T)
-FU <- read.csv(file = "outputs/FM_FU_Sum.csv", header = T)
+# importing dataframes Sample X Taxa
+EU <- read.csv(file = "outputs/FMFinn_EU_final.csv", header = T)
+GH <- read.csv(file = "outputs/FMFinn_GH_final.csv", header = T)
+BR <- read.csv(file = "outputs/FMFinn_BR_final.csv", header = T)
+FU <- read.csv(file = "outputs/FMFinn_FU_final.csv", header = T)
+
+# importing dataframes Taxa X Sample
+EU_tax <- read.csv(file = "outputs/FMFinn_EU_50.csv", header = T)
+GH_tax <- read.csv(file = "outputs/FMFinn_GH_50.csv", header = T)
+BR_tax <- read.csv(file = "outputs/FMFinn_BR_50.csv", header = T)
+FU_tax <- read.csv(file = "outputs/FMFinn_FU_50.csv", header = T)
+```
+
+Preparing tables
+```{r}
+# setting name first column
+names(EU)[1] <- "Sample_ID"
+names(GH)[1] <- "Sample_ID"
+names(BR)[1] <- "Sample_ID"
+names(FU)[1] <- "Sample_ID"
+
+names(EU_tax)[1] <- "taxa"
+names(GH_tax)[1] <- "taxa"
+names(BR_tax)[1] <- "taxa"
+names(FU_tax)[1] <- "taxa"
+
+# Sample_ID as rowname
+rownames(EU) <- EU$Sample_ID
+rownames(GH) <- GH$Sample_ID
+rownames(BR) <- BR$Sample_ID
+rownames(FU) <- FU$Sample_ID
+
+# erasing count column
+EU_tax <- EU_tax[,-42]
+GH_tax <- GH_tax[,-42]
+BR_tax <- BR_tax[,-42]
+FU_tax <- FU_tax[,-42]
+
+# substitute spaces with underscores
+GH_tax$taxa <- gsub(pattern = "\\ ", replacement="_", 
+          x=GH_tax$taxa)
+BR_tax$taxa <- gsub(pattern = "\\ ", replacement="_", 
+          x=BR_tax$taxa)
+EU_tax$taxa <- gsub(pattern = "\\ ", replacement="_", 
+          x=EU_tax$taxa)
+FU_tax$taxa <- gsub(pattern = "\\ ", replacement="_", 
+          x=FU_tax$taxa)
+
+# import csv file with Categories
+GH_Cat <- read.csv("data/plant_cat.csv", header = T, sep = ";")
+# order levels of factor
+GH_Cat$category <- factor(GH_Cat$category, 
+                        levels=c("Betula","Fern","Forb","Graminoid", "Moss", "Salicacea", "Shrub", "Tree","Vaccinium"))
+GH_Cat$category <- factor(GH_Cat$category, levels = rev(levels(GH_Cat$category)))
+# substitute spaces with underscores
+GH_Cat$taxa <- gsub(pattern = "\\ ", replacement="_", 
+          x=GH_Cat$taxa )
 ```
 
 
-## Data visualization: Stacked barplots
+## Data visualization
 
-### Preparing table for data visualization
+### Stacked barplots
 
+Preparing table for data visualization
 Creating a dataframe with some additional metadata
 ```{r}
-# erasing count row
-GH <- GH[-1,]
-
 # loading metadata dataframe
 sample_meta <- read.csv("data/sample_metadata.csv", sep = ";")
 sample_meta <- sample_meta[1:40, 2:6]
@@ -54,43 +97,63 @@ sample_meta <- sample_meta %>% rename_at('Date', ~'Sampling_Date')
 
 # adding herbivore column to GH matadata dataframe
 GH_meta <- cbind(sample_meta, GH[,-1])
+BR_meta <- cbind(sample_meta, BR[,-1])
+EU_meta <- cbind(sample_meta, EU[,-1])
+FU_meta <- cbind(sample_meta, FU[,-1])
 
 # make a vector of the samples for the analysis
-samples <- as.character(GH_meta$Sample_ID);
+samples <- as.character(sample_meta$Sample_ID);
+
+# herbivore as factors
+sample_meta$Herbivore <- factor(sample_meta$Herbivore, 
+                        levels=c("Hare","Moose","Ptarmigan","Reindeer", "Rodent"))
+sample_meta$Herbivore <- factor(sample_meta$Herbivore, levels = rev(levels(sample_meta$Herbivore)))
 ```
 
-Changing format of the GH dataframe 
+Creating MOTU relative abundance dataframes 
 ```{r results='hide', warning=FALSE}
-# transposing (now we have taxa X sample df)
-GH_tax <- as.data.frame(t(GH))
-
-# make first row header of the df
-names(GH_tax) <- GH_tax[1,]
-GH_tax <- GH_tax[-1,]
-
-# convert from character to numeric
-GH_tax[,-1] <- as.data.frame(apply(GH_tax, 2, as.numeric))
-GH_tax$sample.HS1P1Q4_SH137 <- as.numeric(GH_tax$sample.HS1P1Q4_SH137)
-
-# make sample names one of the columns of the data
-GH_tax <- GH_tax %>% 
-  rownames_to_column("taxa")
-
-# calculate MOTU relative abundances 
 GH_tax[,-1] <- lapply(GH_tax[,-1], function(x) (x/sum(x))*100)
-print(colSums(GH_tax[-1]));
+print(colSums(GH_tax[-1]))
 
-# melt data frame for ggplot
-GHbar <- reshape2::melt(GH_tax, id.vars="taxa", value.name = "abun");
-colnames(GHbar)[2] <- "Sample_ID";
-GHbar <- merge(GHbar, GH_meta, by="Sample_ID");
+BR_tax[,-1] <- lapply(BR_tax[,-1], function(x) (x/sum(x))*100)
+print(colSums(BR_tax[-1]))
+
+EU_tax[,-1] <- lapply(EU_tax[,-1], function(x) (x/sum(x))*100)
+print(colSums(EU_tax[-1]))
+
+FU_tax[,-1] <- lapply(FU_tax[,-1], function(x) (x/sum(x))*100)
+print(colSums(FU_tax[-1]))
+# presence of some NaN -> replace them with 0
+FU_tax$sample.REINS1P2Q2_S413[is.nan(FU_tax$sample.REINS1P2Q2_S413)] <- 0
+FU_tax$sample.REINS1P2Q3_S415[is.nan(FU_tax$sample.REINS1P2Q3_S415)] <- 0
 ```
 
-### Plotting the stacked barplots
+Melt dataframes for ggplot
+```{r}
+GHbar <- reshape2::melt(GH_tax, id.vars="taxa", value.name = "abun")
+colnames(GHbar)[2] <- "Sample_ID"
+GHbar <- merge(GHbar, GH_meta, by="Sample_ID")
+GHbar <- merge(GHbar, GH_Cat[,1:2], by="taxa")
+
+BRbar <- reshape2::melt(BR_tax, id.vars="taxa", value.name = "abun")
+colnames(BRbar)[2] <- "Sample_ID"
+BRbar <- merge(BRbar, BR_meta, by="Sample_ID")
+
+EUbar <- reshape2::melt(EU_tax, id.vars="taxa", value.name = "abun")
+colnames(EUbar)[2] <- "Sample_ID"
+EUbar <- merge(EUbar, EU_meta, by="Sample_ID")
+
+FUbar <- reshape2::melt(FU_tax, id.vars="taxa", value.name = "abun")
+colnames(FUbar)[2] <- "Sample_ID"
+FUbar <- merge(FUbar, FU_meta, by="Sample_ID")
+```
+
+Plotting the stacked barplots
+Vascular plants
 ```{r}
 # Barplot Vascular plants - GH
 barGH <- ggplot(data=GHbar, 
-              mapping=aes(x=Sample_ID,y=abun, fill=taxa))+
+              mapping=aes(x=Sample_ID,y=abun, fill=category))+
   geom_bar(stat = "identity")+
   facet_grid(~Herbivore, scales="free_x")+ 
   theme_bw()+ 
@@ -111,9 +174,8 @@ barGH <- ggplot(data=GHbar,
 
 plot(barGH)
 
-
 # save image in pdf
-ggsave(filename="stackbarplot_GH.pdf",
+ggsave(filename="stackbar_GH.pdf",
        device="pdf",path="outputs/figures",
        plot=barGH,
        width=10.5,
@@ -122,61 +184,229 @@ ggsave(filename="stackbarplot_GH.pdf",
        dpi=500)
 ```
 
+Bryophytes
+```{r}
+# Barplot Bryophytes - BR
+barBR <- ggplot(data=BRbar, 
+              mapping=aes(x=Sample_ID,y=abun, fill=taxa))+
+  geom_bar(stat = "identity")+
+  facet_grid(~Herbivore, scales="free_x")+ 
+  theme_bw()+ 
+  labs(x = "Sample",
+       y = "Relative Abundance (%)",
+       fill="Bryophytes taxa")+
+  theme(legend.position="right", 
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=12, face="bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text.y = element_text(size=12),
+        axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),
+        strip.text = element_text(size =10, face="bold"))
+
+plot(barBR)
+
+# save image in pdf
+ggsave(filename="stackbar_BR.pdf",
+       device="pdf",path="outputs/figures",
+       plot=barBR,
+       width=10.5,
+       height=6,
+       units="in",
+       dpi=500)
+```
+
+Fungi
+```{r}
+# Barplot Fungi - FU
+barFU <- ggplot(data=FUbar, 
+              mapping=aes(x=Sample_ID,y=abun, fill=taxa))+
+  geom_bar(stat = "identity")+
+  facet_grid(~Herbivore, scales="free_x")+ 
+  theme_bw()+ 
+  labs(x = "Sample",
+       y = "Relative Abundance (%)",
+       fill="Fungi taxa")+
+  theme(legend.position="right", 
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=12, face="bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text.y = element_text(size=12),
+        axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),
+        strip.text = element_text(size =10, face="bold"))
+
+plot(barFU)
+
+# save image in pdf
+ggsave(filename="stackbar_FU.pdf",
+       device="pdf",path="outputs/figures",
+       plot=barFU,
+       width=10.5,
+       height=6,
+       units="in",
+       dpi=500)
+```
+
+Eukaryota
+```{r}
+# Barplot Eukaryota - EU
+barEU <- ggplot(data=EUbar, 
+              mapping=aes(x=Sample_ID,y=abun, fill=taxa))+
+  geom_bar(stat = "identity")+
+  facet_grid(~Herbivore, scales="free_x")+ 
+  theme_bw()+ 
+  labs(x = "Sample",
+       y = "Relative Abundance (%)",
+       fill="Eukaryota taxa")+
+  theme(legend.position="right", 
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=12, face="bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text.y = element_text(size=12),
+        axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),
+        strip.text = element_text(size =10, face="bold"))
+
+plot(barEU)
+
+# save image in pdf
+ggsave(filename="stackbar_EU.pdf",
+       device="pdf",path="outputs/figures",
+       plot=barEU,
+       width=10.5,
+       height=6,
+       units="in",
+       dpi=500)
+```
 
 
-## Data visualization: Plants associated with herbivore as determined by idicator species analysis
 
-### Preparing table for data visualization
+### Plants associated with herbivore as determined by idicator species analysis
 
+Preparing table for data visualization
 Starting from the table of MOTU relative abundances
 ```{r}
 # transpose table of MOTU family abundances (GH_tax)
 GH_taxt <- as.data.frame(t(GH_tax))
+BR_taxt <- as.data.frame(t(BR_tax))
+EU_taxt <- as.data.frame(t(EU_tax))
+FU_taxt <- as.data.frame(t(FU_tax))
 
 # make first row header of the df
 names(GH_taxt) <- GH_taxt[1,]
 GH_taxt <- GH_taxt[-1,]
 
+names(BR_taxt) <- BR_taxt[1,]
+BR_taxt <- BR_taxt[-1,]
+
+names(EU_taxt) <- EU_taxt[1,]
+EU_taxt <- EU_taxt[-1,]
+
+names(FU_taxt) <- FU_taxt[1,]
+FU_taxt <- FU_taxt[-1,]
+
 # convert from character to numeric
 GH_taxt <- as.data.frame(apply(GH_taxt, 2, as.numeric))
+BR_taxt <- as.data.frame(apply(BR_taxt, 2, as.numeric))
+EU_taxt <- as.data.frame(apply(EU_taxt, 2, as.numeric))
+FU_taxt <- as.data.frame(apply(FU_taxt, 2, as.numeric))
 ```
 
 Getting list of plant taxa that may have different abundance among herbivores' diets
 ```{r results='hide'}
 # classify the result by herbivore taxa: Hare, Moose, Ptarmigan, Reindeer, Rodent
 indGH <- multipatt(GH_taxt, GH_meta$Herbivore, control=how(nperm=999))
-#print(summary(indGH))
+print(summary(indGH))
+
+indBR <- multipatt(BR_taxt, BR_meta$Herbivore, control=how(nperm=999))
+print(summary(indBR))
+
+indEU <- multipatt(EU_taxt, EU_meta$Herbivore, control=how(nperm=999))
+print(summary(indEU))
+
+indFU <- multipatt(FU_taxt, FU_meta$Herbivore, control=how(nperm=999))
+print(summary(indFU))
 
 # save findings to a text file
-cat("outputs/indicator_taxa_GH_herb.txt")
-#sink("outputs/indicator_taxa_GH_herb.txt")
-#summary(indGH)
-#sink()
-# not using sink function because error when knitting
+
+# sink("outputs/indicator_taxa_GH_herb.txt")
+# summary(indGH)
+# sink()
+# 
+# sink("outputs/indicator_taxa_BR_herb.txt")
+# summary(indBR)
+# sink()
+# 
+# sink("outputs/indicator_taxa_EU_herb.txt")
+# summary(indEU)
+# sink()
+# 
+# sink("outputs/indicator_taxa_FU_herb.txt")
+# summary(indFU)
+# sink()
+
+# sink function give error when knitting
 ```
 
 Cleaning file from indicator species analysis
 ```{r}
 # loading table
 hGH <- read.table("outputs/indicator_taxa_GH_herb.txt", sep="\t")
+hBR <- read.table("outputs/indicator_taxa_BR_herb.txt", sep="\t")
+hEU <- read.table("outputs/indicator_taxa_EU_herb.txt", sep="\t")
+hFU <- read.table("outputs/indicator_taxa_FU_herb.txt", sep="\t")
 
 # trim dataframes to only pertinent data (not looking at interaction between herbivore)
-hGH <- as.data.frame(hGH[12:31,])
+hGH <- as.data.frame(hGH[12:28,])
+hBR <- as.data.frame(hBR[12:23,])
+hEU <- as.data.frame(hEU[12:25,])
+hFU <- as.data.frame(hFU[12:30,])
 
-hGH <- as.data.frame(hGH[-c(2,10,13,19),]) 
+hGH <- as.data.frame(hGH[-c(2,5,11,16),]) 
+hBR <- as.data.frame(hBR[-c(2,5,8),]) 
+hEU <- as.data.frame(hEU[-c(2,6,13),]) 
+hFU <- as.data.frame(hFU[-c(2,7,10),]) 
 colnames(hGH)="datacol"
+colnames(hBR)="datacol"
+colnames(hEU)="datacol"
+colnames(hFU)="datacol"
 
 #remove asterisks and trailing spaces from data
 hGH$A <- gsub(pattern = "\\*", replacement="", 
           x=hGH$datacol)
+hBR$A <- gsub(pattern = "\\*", replacement="", 
+          x=hBR$datacol)
+hEU$A <- gsub(pattern = "\\*", replacement="", 
+          x=hEU$datacol)
+hFU$A <- gsub(pattern = "\\*", replacement="", 
+          x=hFU$datacol)
 
 hGH$B <- gsub("\\s+", ",", gsub("^\\s+|\\s+$", "",hGH$A))
+hBR$B <- gsub("\\s+", ",", gsub("^\\s+|\\s+$", "",hBR$A))
+hEU$B <- gsub("\\s+", ",", gsub("^\\s+|\\s+$", "",hEU$A))
+hFU$B <- gsub("\\s+", ",", gsub("^\\s+|\\s+$", "",hFU$A))
 
 # make new data frames with 3 columns: 
 # plant taxa | indicator species statistic | p-value
 hGHsplit <- as.data.frame(str_split_fixed(hGH$B, ",",3))
+hBRsplit <- as.data.frame(str_split_fixed(hBR$B, ",",3))
+hEUsplit <- as.data.frame(str_split_fixed(hEU$B, ",",3))
+hFUsplit <- as.data.frame(str_split_fixed(hFU$B, ",",3))
 
 markhGH <- grep(pattern = "Group", x=as.character(hGHsplit$V1))
+markhBR <- grep(pattern = "Group", x=as.character(hBRsplit$V1))
+markhEU <- grep(pattern = "Group", x=as.character(hEUsplit$V1))
+markhFU <- grep(pattern = "Group", x=as.character(hFUsplit$V1))
 
 hGHsplit$herb <- c(
   rep("Hare", markhGH[2]-markhGH[1]),
@@ -184,27 +414,75 @@ hGHsplit$herb <- c(
   rep("Reindeer", markhGH[4]-markhGH[3]),
   rep("Rodent", nrow(hGHsplit)-markhGH[4]+1))
 
+hBRsplit$herb <- c(
+  rep("Hare", markhBR[2]-markhBR[1]),
+  rep("Moose", markhBR[3]-markhBR[2]),
+  rep("Reindeer", nrow(hBRsplit)-markhBR[3]+1))
+
+hEUsplit$herb <- c(
+  rep("Hare", markhEU[2]-markhEU[1]),
+  rep("Reindeer", markhEU[3]-markhEU[2]),
+  rep("Rodent", nrow(hEUsplit)-markhEU[3]+1))
+
+hFUsplit$herb <- c(
+  rep("Hare", markhFU[2]-markhFU[1]),
+  rep("Moose", markhFU[3]-markhFU[2]),
+  rep("Reindeer", nrow(hFUsplit)-markhFU[3]+1))
+
 # remove unwanted rows
-hGH <- as.data.frame(hGHsplit[-markhGH,]);
+hGH <- as.data.frame(hGHsplit[-markhGH,])
+hBR <- as.data.frame(hBRsplit[-markhBR,])
+hEU <- as.data.frame(hEUsplit[-markhEU,])
+hFU <- as.data.frame(hFUsplit[-markhFU,])
 
 # rename columns of new data frames
-colnames(hGH) <- c("plant_taxa","stat","pvalue","herbivore");
+colnames(hGH) <- c("plant_taxa","stat","pvalue","herbivore")
+colnames(hBR) <- c("bryo_taxa","stat","pvalue","herbivore")
+colnames(hEU) <- c("euka_taxa","stat","pvalue","herbivore")
+colnames(hFU) <- c("fungi_taxa","stat","pvalue","herbivore")
 
 # coerce statistic column into numerical
 hGH$stat <- as.numeric(as.character(hGH$stat))
+hBR$stat <- as.numeric(as.character(hBR$stat))
+hEU$stat <- as.numeric(as.character(hEU$stat))
+hFU$stat <- as.numeric(as.character(hFU$stat))
 
 # coerce plant taxa column to character
-hGH$plant_taxa <- as.character(hGH$plant_taxa)
+# hGH$plant_taxa <- as.character(hGH$plant_taxa)
 
 # order levels of factor
 hGH$herbivore <- factor(hGH$herbivore, 
                         levels=c("Hare","Moose","Reindeer","Rodent"))
 hGH$herbivore <- factor(hGH$herbivore, levels = rev(levels(hGH$herbivore)))
+
+hBR$herbivore <- factor(hBR$herbivore, 
+                        levels=c("Hare","Moose","Reindeer"))
+hBR$herbivore <- factor(hBR$herbivore, levels = rev(levels(hBR$herbivore)))
+
+hEU$herbivore <- factor(hEU$herbivore, 
+                        levels=c("Hare","Reindeer","Rodent"))
+hEU$herbivore <- factor(hEU$herbivore, levels = rev(levels(hEU$herbivore)))
+
+hFU$herbivore <- factor(hFU$herbivore, 
+                        levels=c("Hare","Moose","Reindeer"))
+hFU$herbivore <- factor(hFU$herbivore, levels = rev(levels(hFU$herbivore)))
 ```
 
-### Plot plant taxa associated with particular herbivore
+Plot figure of plant taxa associated with particular herbivore
 
-Plotting figure
+Custumize color palette
+```{r}
+#Create a custom color scale
+
+# myCol <- c(viridis::viridis(n = 5))
+# library(scales)
+# show_col(hue_pal()(5))
+myCol <- c("#E76BF3", "#00B0F6", "#00BF7D", "#A3A500", "#F8766D")
+names(myCol) <- levels(sample_meta$Herbivore)
+```
+
+
+Vascular plants
 ```{r}
 # plot sideways barplot
 ibarGH <- ggplot(hGH, aes(x=plant_taxa, y=stat, fill=herbivore))+ 
@@ -212,6 +490,7 @@ ibarGH <- ggplot(hGH, aes(x=plant_taxa, y=stat, fill=herbivore))+
   coord_flip()+
   scale_x_discrete(limits = hGH$plant_taxa)+
   scale_y_continuous(breaks=c(0, 0.25, 0.50, 0.75,1))+
+  scale_fill_manual(values = myCol)+
   labs(x = "",
        y = "Indicator Species statistic",
        fill="Associated with",
@@ -242,56 +521,243 @@ ggsave(filename="indicator_GH.pdf",
        dpi=500)
 ```
 
-
-
-## Data visualization: alpha-diversity
-
-### Computing alpha-diversity using phyloseq 
-
-Alpha-diversity measures: ASV richness, Chao1 richness, Shannon diversity, Simpson's diversity
+Bryophytes
 ```{r}
-# first column to rowname
-row.names(GH) <- GH$Sample_ID
-GHalp <- GH[,-1]
+# plot sideways barplot
+ibarBR <- ggplot(hBR, aes(x=bryo_taxa, y=stat, fill=herbivore))+ 
+  geom_bar(stat="identity", width=0.5)+
+  coord_flip()+
+  scale_x_discrete(limits = hBR$bryo_taxa)+
+  scale_y_continuous(breaks=c(0, 0.25, 0.50, 0.75,1))+
+  scale_fill_manual(values = myCol)+
+  labs(x = "",
+       y = "Indicator Species statistic",
+       fill="Associated with",
+       title="By herbivore")+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        plot.title=element_text(size=9, face="bold"),
+        legend.key.size=unit(0.6, "cm"),
+        legend.text=element_text(size=9),
+        legend.title=element_text(size=9, face="bold"),
+        legend.position ="bottom",
+        legend.spacing.y = unit(0, "cm"),
+        axis.text.x = element_text(size=10),
+        axis.text.y = element_text(size=8))+
+  guides(fill=guide_legend(nrow=2,byrow=TRUE))
 
-# make a phyloseq object and calculate 4 metrics of alpha-diversity
-psGH <- phyloseq(otu_table(as.matrix(GHalp), taxa_are_rows=FALSE))
-alphaGH <- estimate_richness(psGH,split = TRUE, 
-                        measures = c("Observed","Chao1","Shannon","Simpson"))
+plot(ibarBR)
 
-# calculate Good's coverage and append to alpha df
-gcovGH <- goods(GHalp)
-alphaGH <- merge(alphaGH, gcovGH, by="row.names", all=TRUE)
-colnames(alphaGH)[1]="Sample_ID"
+# save image 
+ggsave(filename="indicator_BR.pdf",
+       device="pdf",path="outputs/figures",
+       plot=ibarBR,
+       width=5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Eukaryotes
+```{r}
+# plot sideways barplot
+ibarEU <- ggplot(hEU, aes(x=euka_taxa, y=stat, fill=herbivore))+ 
+  geom_bar(stat="identity", width=0.5)+
+  coord_flip()+
+  scale_x_discrete(limits = hEU$euka_taxa)+
+  scale_y_continuous(breaks=c(0, 0.25, 0.50, 0.75,1))+
+  scale_fill_manual(values = myCol)+
+  labs(x = "",
+       y = "Indicator Species statistic",
+       fill="Associated with",
+       title="By herbivore")+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        plot.title=element_text(size=9, face="bold"),
+        legend.key.size=unit(0.6, "cm"),
+        legend.text=element_text(size=9),
+        legend.title=element_text(size=9, face="bold"),
+        legend.position ="bottom",
+        legend.spacing.y = unit(0, "cm"),
+        axis.text.x = element_text(size=10),
+        axis.text.y = element_text(size=8))+
+  guides(fill=guide_legend(nrow=2,byrow=TRUE))
+
+plot(ibarEU)
+
+# save image 
+ggsave(filename="indicator_EU.pdf",
+       device="pdf",path="outputs/figures",
+       plot=ibarEU,
+       width=5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Fungi
+```{r}
+# plot sideways barplot
+ibarFU <- ggplot(hFU, aes(x=fungi_taxa, y=stat, fill=herbivore))+ 
+  geom_bar(stat="identity", width=0.5)+
+  coord_flip()+
+  scale_x_discrete(limits = hFU$fungi_taxa)+
+  scale_y_continuous(breaks=c(0, 0.25, 0.50, 0.75,1))+
+  scale_fill_manual(values = myCol)+
+  labs(x = "",
+       y = "Indicator Species statistic",
+       fill="Associated with",
+       title="By herbivore")+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        plot.title=element_text(size=9, face="bold"),
+        legend.key.size=unit(0.6, "cm"),
+        legend.text=element_text(size=9),
+        legend.title=element_text(size=9, face="bold"),
+        legend.position ="bottom",
+        legend.spacing.y = unit(0, "cm"),
+        axis.text.x = element_text(size=10),
+        axis.text.y = element_text(size=8))+
+  guides(fill=guide_legend(nrow=2,byrow=TRUE))
+
+plot(ibarFU)
+
+# save image 
+ggsave(filename="indicator_FU.pdf",
+       device="pdf",path="outputs/figures",
+       plot=ibarFU,
+       width=6,
+       height=4,
+       units="in",
+       dpi=500)
 ```
 
 
-### Plotting alpha-diversity using phyloseq 
+### Alpha-Diversity
 
-Boxplots of alpha-diversity metrics
+Alpha-diversity measures usinh phyloseq: ASV richness, Chao1 richness, Shannon diversity, Simpson's diversity
+```{r}
+# make a phyloseq object and calculate 4 metrics of alpha-diversity
+psGH <- phyloseq(otu_table(as.matrix(GH[,-1]), taxa_are_rows=FALSE))
+alphaGH <- estimate_richness(psGH,split = TRUE, 
+                        measures = c("Observed","Chao1","Shannon","Simpson"))
+
+psBR <- phyloseq(otu_table(as.matrix(BR[,-1]), taxa_are_rows=FALSE))
+alphaBR <- estimate_richness(psBR,split = TRUE, 
+                        measures = c("Observed","Chao1","Shannon","Simpson"))
+
+psEU <- phyloseq(otu_table(as.matrix(EU[,-1]), taxa_are_rows=FALSE))
+alphaEU <- estimate_richness(psEU,split = TRUE, 
+                        measures = c("Observed","Chao1","Shannon","Simpson"))
+
+psFU <- phyloseq(otu_table(as.matrix(FU[,-1]), taxa_are_rows=FALSE))
+alphaFU <- estimate_richness(psFU,split = TRUE, 
+                        measures = c("Observed","Chao1","Shannon","Simpson"))
+
+# calculate Good's coverage and append to alpha df
+gcovGH <- goods(GH[,-1])
+alphaGH <- merge(alphaGH, gcovGH, by="row.names", all=TRUE)
+colnames(alphaGH)[1]="Sample_ID"
+
+gcovBR <- goods(BR[,-1])
+alphaBR <- merge(alphaBR, gcovBR, by="row.names", all=TRUE)
+colnames(alphaBR)[1]="Sample_ID"
+
+gcovEU <- goods(EU[,-1])
+alphaEU <- merge(alphaEU, gcovEU, by="row.names", all=TRUE)
+colnames(alphaEU)[1]="Sample_ID"
+
+gcovFU <- goods(FU[,-1])
+alphaFU <- merge(alphaFU, gcovFU, by="row.names", all=TRUE)
+colnames(alphaFU)[1]="Sample_ID"
+```
+
+Preparing alpha-diversity metrics dataframes
 ```{r}
 # rearrange data frames to facilitate plotting in ggplot2
 alphaGHdf <- inner_join(alphaGH[,c(1,3,5,6)], as.data.frame(GH_meta[,c(2,3)]), by="Sample_ID")
+
+alphaBRdf <- inner_join(alphaBR[,c(1,3,5,6)], as.data.frame(BR_meta[,c(2,3)]), by="Sample_ID")
+
+alphaEUdf <- inner_join(alphaEU[,c(1,3,5,6)], as.data.frame(EU_meta[,c(2,3)]), by="Sample_ID")
+
+alphaFUdf <- inner_join(alphaFU[,c(1,3,5,6)], as.data.frame(FU_meta[,c(2,3)]), by="Sample_ID")
 
 # melt alphaGHdf for Chao1 boxplots
 ChaoGH <- alphaGHdf[,c(1,2,5)]
 ChaoGH$cat <- "Chao1"
 colnames(ChaoGH) <- c("Sample","value","variable","category")
 
+ChaoBR <- alphaBRdf[,c(1,2,5)]
+ChaoBR$cat <- "Chao1"
+colnames(ChaoBR) <- c("Sample","value","variable","category")
+
+ChaoEU <- alphaEUdf[,c(1,2,5)]
+ChaoEU$cat <- "Chao1"
+colnames(ChaoEU) <- c("Sample","value","variable","category")
+
+ChaoFU <- alphaFUdf[,c(1,2,5)]
+ChaoFU$cat <- "Chao1"
+colnames(ChaoFU) <- c("Sample","value","variable","category")
+
 # melt alphaGHdf for Shannon boxplots
 ShannonGH <- alphaGHdf[,c(1,3,5)]
 ShannonGH$cat <- "Shannon"
 colnames(ShannonGH) <- c("Sample","value","variable","category")
+
+ShannonBR <- alphaBRdf[,c(1,3,5)]
+ShannonBR$cat <- "Shannon"
+colnames(ShannonBR) <- c("Sample","value","variable","category")
+
+ShannonEU <- alphaEUdf[,c(1,3,5)]
+ShannonEU$cat <- "Shannon"
+colnames(ShannonEU) <- c("Sample","value","variable","category")
+
+ShannonFU <- alphaFUdf[,c(1,3,5)]
+ShannonFU$cat <- "Shannon"
+colnames(ShannonFU) <- c("Sample","value","variable","category")
 
 # melt alphaGHdf for Simpson boxplots
 SimpsonGH <- alphaGHdf[,c(1,4,5)]
 SimpsonGH$cat <- "Simpson"
 colnames(SimpsonGH) <- c("Sample","value","variable","category")
 
+SimpsonBR <- alphaBRdf[,c(1,4,5)]
+SimpsonBR$cat <- "Simpson"
+colnames(SimpsonBR) <- c("Sample","value","variable","category")
+
+SimpsonEU <- alphaEUdf[,c(1,4,5)]
+SimpsonEU$cat <- "Simpson"
+colnames(SimpsonEU) <- c("Sample","value","variable","category")
+
+SimpsonFU <- alphaFUdf[,c(1,4,5)]
+SimpsonFU$cat <- "Simpson"
+colnames(SimpsonFU) <- c("Sample","value","variable","category")
+
 # merge the three melted df
 alphaGHp <- rbind(ChaoGH, ShannonGH, SimpsonGH)
 alphaGHp$category <- factor(alphaGHp$cat, levels=c("Chao1","Shannon", "Simpson"))
 
+alphaBRp <- rbind(ChaoBR, ShannonBR, SimpsonBR)
+alphaBRp$category <- factor(alphaBRp$cat, levels=c("Chao1","Shannon", "Simpson"))
+
+alphaEUp <- rbind(ChaoEU, ShannonEU, SimpsonEU)
+alphaEUp$category <- factor(alphaEUp$cat, levels=c("Chao1","Shannon", "Simpson"))
+
+alphaFUp <- rbind(ChaoFU, ShannonFU, SimpsonFU)
+alphaFUp$category <- factor(alphaFUp$cat, levels=c("Chao1","Shannon", "Simpson"))
+```
+
+Plotting Alpha-diversity metrics
+
+Vascular plants
+```{r}
 # create plot
 p_aGH <- ggplot(data=alphaGHp, 
                 mapping=aes(x=variable, y=value, fill=variable))+
@@ -300,7 +766,7 @@ p_aGH <- ggplot(data=alphaGHp,
   theme_bw()+ 
   labs(x = "",
        y = "Alpha Diversity",
-       title="")+
+       title="Alpha Diversity Measures of Vascular Plants in 5 Herbivore taxa")+
   theme(legend.position="none", 
         plot.title = element_text(size=14, face="bold"),
         axis.title.y = element_text(size=12, face="bold"),
@@ -318,6 +784,621 @@ ggsave(filename="alphadiv_boxplot_GH.pdf",
        height=4,
        units="in",
        dpi=500)
+```
+
+Bryophytes
+```{r}
+# create plot
+p_aBR <- ggplot(data=alphaBRp, 
+                mapping=aes(x=variable, y=value, fill=variable))+
+  geom_boxplot()+
+  facet_wrap(~category, scales="free_y")+ 
+  theme_bw()+ 
+  labs(x = "",
+       y = "Alpha Diversity",
+       title="Alpha Diversity Measures of Bryophytes in 5 Herbivore taxa")+
+  theme(legend.position="none", 
+        plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12, face="bold"),
+        axis.text.y = element_text(size=10),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold"))
+
+plot(p_aBR)
+
+# save alpha-diversity boxplot
+ggsave(filename="alphadiv_boxplot_BR.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_aBR,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Eukaryotes
+```{r}
+# create plot
+p_aEU <- ggplot(data=alphaEUp, 
+                mapping=aes(x=variable, y=value, fill=variable))+
+  geom_boxplot()+
+  facet_wrap(~category, scales="free_y")+ 
+  theme_bw()+ 
+  labs(x = "",
+       y = "Alpha Diversity",
+       title="Alpha Diversity Measures of Eukaryotes in 5 Herbivore taxa")+
+  theme(legend.position="none", 
+        plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12, face="bold"),
+        axis.text.y = element_text(size=10),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold"))
+
+plot(p_aEU)
+
+# save alpha-diversity boxplot
+ggsave(filename="alphadiv_boxplot_EU.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_aEU,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Fungi
+```{r}
+# create plot
+p_aFU <- ggplot(data=alphaFUp, 
+                mapping=aes(x=variable, y=value, fill=variable))+
+  geom_boxplot()+
+  facet_wrap(~category, scales="free_y")+ 
+  theme_bw()+ 
+  labs(x = "",
+       y = "Alpha Diversity",
+       title="Alpha Diversity Measures of Fungi in 5 Herbivore taxa")+
+  theme(legend.position="none", 
+        plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12, face="bold"),
+        axis.text.y = element_text(size=10),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold"))
+
+plot(p_aFU)
+
+# save alpha-diversity boxplot
+ggsave(filename="alphadiv_boxplot_FU.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_aFU,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Plotting rarefaction curves
+```{r}
+#rarecurve(GH[,-1], step=50, col=GH_meta$Herbivore, lwd=2, ylab="MOTUs", label=T, cex=0.3)
+```
+
+
+### Hierarchical clustering
+
+```{r}
+# # clusGH <- hclust(GHdis, "complete")
+# clusGH
+# plot(clusGH)
+# 
+# fviz_dend(x=clusGH, cex = 0.5, lwd = 0.5)
+```
+
+
+## Data analysis: PERMANOVA test
+
+### adonis2
+
+PERmutational Multivariate ANalysis of VAriance using adonis2 function from vegan package
+```{r}
+ # making column Herbivore a factor
+GH_meta$Herbivore <- as.factor(GH_meta$Herbivore)
+BR_meta$Herbivore <- as.factor(BR_meta$Herbivore)
+EU_meta$Herbivore <- as.factor(EU_meta$Herbivore)
+FU_meta$Herbivore <- as.factor(FU_meta$Herbivore)
+
+# checking for homogeneous dispersion with Betadisper
+# Bray-Curtis distances between samples
+GHdis <- vegdist(GH[,-1])
+BRdis <- vegdist(BR[,-1])
+EUdis <- vegdist(EU[,-1])
+# FUdis <- vegdist(FU[,-1]) # we have two reindeer samples which olny contain 0
+
+# create a factor with the grouping that I want to use
+groups <- GH_meta$Herbivore
+
+# calculate multivariate dispersions
+mod <- betadisper(GHdis, groups)
+mod
+# we can see that the avarage distance to median is much lower for Ptarmigan and Moose
+mod2 <- betadisper(BRdis, groups)
+mod2
+mod3 <- betadisper(EUdis, groups)
+mod3
+# mod4 <- betadisper(FUdis, groups)
+# mod4
+
+# Perform anova test
+# test if there is significant variation in the dispersion of the different group of herbivores
+permutest(mod, pairwise = T)
+permutest(mod2, pairwise = T)
+permutest(mod3, pairwise = T)
+# permutest(mod4, pairwise = T)
+
+# running PERMANOVA test
+GH_adonis2 <- adonis2(GHdis ~ Herbivore, GH_meta, method = "bray")
+GH_adonis2
+
+BR_adonis2 <- adonis2(BRdis ~ Herbivore, BR_meta, method = "bray")
+BR_adonis2
+
+EU_adonis2 <- adonis2(EUdis ~ Herbivore, EU_meta, method = "bray")
+EU_adonis2
+
+# FU_adonis2 <- adonis2(FUdis ~ Herbivore, FU_meta, method = "bray")
+# FU_adonis2
+```
+
+Pairwise multilevel comparison using parwise.adonis()
+```{r}
+pwado_GH <- pairwise.adonis(GH[,-1], groups)
+pwado_GH
+
+pwado_BR <- pairwise.adonis(BR[,-1], groups)
+pwado_BR
+
+pwado_EU <- pairwise.adonis(EU[,-1], groups)
+pwado_EU
+
+# pwado_FU <- pairwise.adonis(FU[,-1], groups)
+# pwado_FU
+```
+
+
+### manyglm
+
+Fitting Generalized Linear Models for Multivariate Abundance Data
+Less biased by the use of distance matrix with respect to PERMANOVA
+```{r}
+# converting GH abundance table to an mvabund object
+GHabund <- mvabund(GH[,-1])
+BRabund <- mvabund(BR[,-1])
+EUabund <- mvabund(EU[,-1])
+FUabund <- mvabund(FU[,-1])
+
+# fitting glm to GH data using group of herbivore as a factor 
+GHmglm <- manyglm(GHabund ~ groups)
+summaryGHmglm <- summary(GHmglm)
+summaryGHmglm
+
+BRmglm <- manyglm(BRabund ~ groups)
+summaryBRmglm <- summary(BRmglm)
+summaryBRmglm
+
+EUmglm <- manyglm(EUabund ~ groups)
+summaryEUmglm <- summary(EUmglm)
+summaryEUmglm
+
+FUmglm <- manyglm(FUabund ~ groups)
+summaryFUmglm <- summary(FUmglm)
+summaryFUmglm
+
+plot(GHmglm, which = c(1:3))
+#looks normal
+plot(BRmglm, which = c(1:3))
+plot(EUmglm, which = c(1:3))
+plot(FUmglm, which = c(1:3))
+
+# computing an analysis of deviance table (anova) for a multivariate generalized linear model fit
+glm_anova_GH <- anova.manyglm(GHmglm)
+glm_anova_GH
+
+glm_anova_BR <- anova.manyglm(BRmglm)
+glm_anova_BR
+
+glm_anova_EU <- anova.manyglm(EUmglm)
+glm_anova_EU
+
+glm_anova_FU <- anova.manyglm(FUmglm)
+glm_anova_FU
+```
+
+
+
+## Ordination analysis
+
+### NMDS - Non-metric MultiDimensional Scaling
+
+Indirect gradient analysis approach which produces an ordination based on a distance or dissimilarity matrix
+```{r results='hide'}
+set.seed(1)
+# running Multidimensional Scaling
+metaMDS(GHdis) #Stress:     0.1626642 -> should be < 0.1 
+metaMDS(BRdis) #Stress:     0.1579963 
+metaMDS(EUdis) #Stress:     0.160832 
+#metaMDS(FUdis) #Errore in cmdscale(dist, k = k) : NA values not allowed in 'd'
+
+# saving scores as tibble
+GH_NMDS <- metaMDS(GHdis) %>%
+  scores() %>%
+  as_tibble(rownames = "Sample_ID")
+
+BR_NMDS <- metaMDS(BRdis) %>%
+  scores() %>%
+  as_tibble(rownames = "Sample_ID")
+
+EU_NMDS <- metaMDS(EUdis) %>%
+  scores() %>%
+  as_tibble(rownames = "Sample_ID")
+
+# FU_NMDS <- metaMDS(FUdis) %>%
+#   scores() %>%
+#   as_tibble(rownames = "Sample_ID")
+
+# dataframe for plotting 
+meta_GHNMDS <- inner_join(GH_meta, GH_NMDS)
+meta_BRNMDS <- inner_join(BR_meta, BR_NMDS)
+meta_EUNMDS <- inner_join(EU_meta, EU_NMDS)
+#meta_FUNMDS <- inner_join(FU_meta, FU_NMDS)
+```
+
+Plotting NMDS
+
+Vascular plants
+```{r}
+# NMDS plot
+p_NMDS_GH <- meta_GHNMDS %>%
+  ggplot(aes(x=NMDS1, y=NMDS2, color=Herbivore)) +
+  geom_point() +
+  stat_ellipse() + 
+  labs(x = "NMDS 1",
+       y = "NMDS 2",
+       title="NMDS of Vascular Plant in the diet of 5 Herbivore taxa") +
+  theme(plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold"))
+
+plot(p_NMDS_GH)
+
+# exporting figure
+ggsave(filename="NMDS_GH.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_NMDS_GH,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+#### envfit
+```{r}
+library(vegan)
+library(ggplot2)
+library(grid)
+
+# 
+# # calculate distance for NMDS
+# NMDS.log<-log1p(dune)
+# set.seed(42)
+# sol <- metaMDS(NMDS.log)
+# 
+# scrs <- as.data.frame(scores(sol, display = "sites"))
+# scrs <- cbind(scrs, Group = GH_meta$Herbivore)
+# 
+# 
+# # transpose category df for envfit
+# tGH_Cat <- as.data.frame(t(GH_Cat[,-1]))
+# colnames(tGH_Cat) <- tGH_Cat[1,]
+# tGH_Cat <- tGH_Cat[-c(1,42),]
+# 
+# vf <- envfit(metaMDS(GHdis), tGH_Cat, perm = 999)
+# 
+# spp.scrs <- as.data.frame(scores(vf, display = "vectors"))
+# spp.scrs <- cbind(spp.scrs, Species = rownames(spp.scrs))
+# 
+# p <- ggplot(scrs) +
+#   geom_point(mapping = aes(x = NMDS1, y = NMDS2, colour = Group)) +
+#   coord_fixed() + ## need aspect ratio of 1!
+#   geom_segment(data = spp.scrs,
+#                aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+#                arrow = arrow(length = unit(0.25, "cm")), colour = "grey") +
+#   geom_text(data = spp.scrs, aes(x = NMDS1, y = NMDS2, label = Species),
+#             size = 3)
+
+```
+
+
+Bryophytes
+```{r}
+# NMDS plot
+p_NMDS_BR <- meta_BRNMDS %>%
+  ggplot(aes(x=NMDS1, y=NMDS2, color=Herbivore)) +
+  geom_point() +
+  stat_ellipse() + 
+  labs(x = "NMDS 1",
+       y = "NMDS 2",
+       title="NMDS of Bryophytes in the diet of 5 Herbivore taxa") +
+  theme(plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold"))
+
+plot(p_NMDS_BR)
+
+# exporting figure
+ggsave(filename="NMDS_BR.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_NMDS_BR,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Eukaryotes
+```{r}
+# NMDS plot
+p_NMDS_EU <- meta_EUNMDS %>%
+  ggplot(aes(x=NMDS1, y=NMDS2, color=Herbivore)) +
+  geom_point() +
+  stat_ellipse() + 
+  labs(x = "NMDS 1",
+       y = "NMDS 2",
+       title="NMDS of Eukaryotes in the diet of 5 Herbivore taxa") +
+  theme(plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold"))
+
+plot(p_NMDS_EU)
+
+# exporting figure
+ggsave(filename="NMDS_EU.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_NMDS_EU,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Fungi
+```{r}
+# NMDS plot
+# p_NMDS_FU <- meta_FUNMDS %>%
+#   ggplot(aes(x=NMDS1, y=NMDS2, color=Herbivore)) +
+#   geom_point() +
+#   stat_ellipse() + 
+#   labs(x = "NMDS 1",
+#        y = "NMDS 2",
+#        title="NMDS of Fungi in the diet of 5 Herbivore taxa") +
+#   theme(plot.title = element_text(size=14, face="bold"),
+#         axis.title.y = element_text(size=12),
+#         axis.text.y = element_text(size=12),
+#         axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+#         strip.text = element_text(size =11, face="bold"))
+# 
+# plot(p_NMDS_FU)
+# 
+# # exporting figure
+# ggsave(filename="NMDS_FU.pdf",
+#        device="pdf",path="outputs/figures",
+#        plot=p_NMDS_FU,
+#        width=6.5,
+#        height=4,
+#        units="in",
+#        dpi=500)
+```
+
+
+
+### PCoA - Principal Coordinate Analysis
+
+Better ordination method than PCA since allows to use distances different than Eucledian, Bray-Curtis is in fact better for ecological studies
+```{r results='hide'}
+# running PCoA witth cmdscale()
+pcoaGH <- cmdscale(GHdis, k=2, eig=T, add = T)
+positions <- pcoaGH$points
+colnames(positions) <- c("pcoa1", "pcoa2")
+pcoaGH
+
+pcoaBR <- cmdscale(BRdis, k=2, eig=T, add = T)
+positions2 <- pcoaBR$points
+colnames(positions2) <- c("pcoa1", "pcoa2")
+pcoaBR
+
+pcoaEU <- cmdscale(EUdis, k=2, eig=T, add = T)
+positions3 <- pcoaEU$points
+colnames(positions3) <- c("pcoa1", "pcoa2")
+pcoaEU
+
+# pcoaFU <- cmdscale(FUdis, k=2, eig=T, add = T)
+# positions4 <- pcoaFU$points
+# colnames(positions4) <- c("pcoa1", "pcoa2")
+# pcoaFU
+```
+
+Computing percentage explained by the two first axis
+```{r}
+percent_explainedGH <- 100*pcoaGH$eig/sum(pcoaGH$eig)
+percent_explainedGH[1:2] 
+
+perc_explGH <- format(round(percent_explainedGH[1:2], digits = 1), nsmall=1, trim=T)
+
+labs <- c(glue("PCo 1 ({perc_explGH[1]}%)"), 
+          glue("PCo 2 ({perc_explGH[2]}%)"))
+
+
+percent_explainedBR <- 100*pcoaBR$eig/sum(pcoaBR$eig)
+percent_explainedBR[1:2] 
+perc_explBR <- format(round(percent_explainedBR[1:2], digits = 1), nsmall=1, trim=T)
+labs2 <- c(glue("PCo 1 ({perc_explBR[1]}%)"), 
+          glue("PCo 2 ({perc_explBR[2]}%)"))
+
+percent_explainedEU <- 100*pcoaEU$eig/sum(pcoaEU$eig)
+percent_explainedEU[1:2] 
+perc_explEU <- format(round(percent_explainedEU[1:2], digits = 1), nsmall=1, trim=T)
+labs3 <- c(glue("PCo 1 ({perc_explEU[1]}%)"), 
+          glue("PCo 2 ({perc_explEU[2]}%)"))
+
+# percent_explainedFU <- 100*pcoaFU$eig/sum(pcoaFU$eig)
+# percent_explainedFU[1:2] 
+# perc_explFU <- format(round(percent_explainedFU[1:2], digits = 1), nsmall=1, trim=T)
+# labs4 <- c(glue("PCo 1 ({perc_explFU[1]}%)"), 
+#           glue("PCo 2 ({perc_explFU[2]}%)"))
+
+# tibble for plotting PCoA
+GH_pcoa <- positions %>%
+  as_tibble(rownames = "Sample_ID") 
+
+BR_pcoa <- positions2 %>%
+  as_tibble(rownames = "Sample_ID") 
+
+EU_pcoa <- positions3 %>%
+  as_tibble(rownames = "Sample_ID") 
+
+# FU_pcoa <- positions4 %>%
+#   as_tibble(rownames = "Sample_ID") 
+
+# dataframe for plotting 
+meta_GHpcoa <- inner_join(GH_meta, GH_pcoa)
+meta_BRpcoa <- inner_join(BR_meta, BR_pcoa)
+meta_EUpcoa <- inner_join(EU_meta, EU_pcoa)
+# meta_FUpcoa <- inner_join(FU_meta, FU_pcoa)
+```
+
+
+Plotting PCoA
+
+Vascular plants
+```{r}
+# PCoA plot
+p_pcoa_GH <- meta_GHpcoa %>%
+  ggplot(aes(x=pcoa1, y=pcoa2, color=Herbivore)) + 
+  geom_point() +
+  labs(x=labs[1], y=labs[2], 
+       title="PCoA of Vascular Plant in the diet of 5 Herbivore taxa") +
+  theme(plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold")
+) +
+  stat_ellipse()
+  
+plot(p_pcoa_GH)
+
+# exporting figure
+ggsave(filename="PCoA_GH.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_pcoa_GH,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Bryophytes
+```{r}
+# PCoA plot
+p_pcoa_BR <- meta_BRpcoa %>%
+  ggplot(aes(x=pcoa1, y=pcoa2, color=Herbivore)) + 
+  geom_point() +
+  labs(x=labs2[1], y=labs2[2], 
+       title="PCoA of Bryophytes in the diet of 5 Herbivore taxa") +
+  theme(plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold")
+) +
+  stat_ellipse()
+  
+plot(p_pcoa_BR)
+
+# exporting figure
+ggsave(filename="PCoA_BR.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_pcoa_BR,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Eukaryotes
+```{r}
+# PCoA plot
+p_pcoa_EU <- meta_EUpcoa %>%
+  ggplot(aes(x=pcoa1, y=pcoa2, color=Herbivore)) + 
+  geom_point() +
+  labs(x=labs3[1], y=labs3[2], 
+       title="PCoA of Eukaryotes in the diet of 5 Herbivore taxa") +
+  theme(plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold")
+) +
+  stat_ellipse()
+  
+plot(p_pcoa_EU)
+
+# exporting figure
+ggsave(filename="PCoA_EU.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_pcoa_EU,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+Fungi
+```{r}
+# PCoA plot
+# p_pcoa_FU <- meta_FUpcoa %>%
+#   ggplot(aes(x=pcoa1, y=pcoa2, color=Herbivore)) + 
+#   geom_point() +
+#   labs(x=labs4[1], y=labs4[2], 
+#        title="PCoA of Fungi in the diet of 5 Herbivore taxa") +
+#   theme(plot.title = element_text(size=14, face="bold"),
+#         axis.title.y = element_text(size=12),
+#         axis.text.y = element_text(size=12),
+#         axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+#         strip.text = element_text(size =11, face="bold")
+# ) +
+#   stat_ellipse()
+#   
+# plot(p_pcoa_FU)
+# 
+# # exporting figure
+# ggsave(filename="PCoA_FU.pdf",
+#        device="pdf",path="outputs/figures",
+#        plot=p_pcoa_FU,
+#        width=6.5,
+#        height=4,
+#        units="in",
+#        dpi=500)
+```
+
+
+### RDA - Redundancy Analysis
+
+```{r}
+
 ```
 
 
