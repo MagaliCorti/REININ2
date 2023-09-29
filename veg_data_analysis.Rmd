@@ -68,6 +68,8 @@ FU_tax$taxa <- gsub(pattern = "\\ ", replacement="_",
           x=FU_tax$taxa)
 
 # import csv file with Categories
+
+# PLANT
 GH_Cat <- read.csv("data/plant_cat.csv", header = T, sep = ";")
 # order levels of factor
 GH_Cat$category <- factor(GH_Cat$category, 
@@ -76,7 +78,34 @@ GH_Cat$category <- factor(GH_Cat$category, levels = rev(levels(GH_Cat$category))
 # substitute spaces with underscores
 GH_Cat$taxa <- gsub(pattern = "\\ ", replacement="_", 
           x=GH_Cat$taxa )
+
+# EUKARYOTA
+EU_Cat <- read.csv("data/euka_cat.csv", header = T, sep = ";")
+# order levels of factor
+EU_Cat$category <- factor(EU_Cat$category, 
+                        levels=c("Animal","Bryophyte","Fungi","Plant", "Protozoa"))
+EU_Cat$category <- factor(EU_Cat$category, levels = rev(levels(EU_Cat$category)))
+# substitute spaces with underscores
+EU_Cat$taxa <- gsub(pattern = "\\ ", replacement="_", 
+          x=EU_Cat$taxa )
 ```
+
+
+
+## Simple statistics
+
+Proportion of Fungi, Bryophytes and Vascular Plants that detected from the Eukaryota primer
+```{r}
+EU_Cat[,-c(1:2)] <- EU_Cat[,-c(1:2)]  %>% mutate_all(as.numeric)
+
+perc_EU <- EU_Cat[,-c(3:42)] %>%
+  group_by(category) %>%
+  summarise_if(is.numeric, sum)
+
+perc_EU <- perc_EU %>% mutate(Percentage = count/sum(count)*100)
+perc_EU
+```
+In term of reads abundance we can see that Fungi represent the biggest share with 91.6%, followed by Protozoa 3.2%, Animal 2.1%, Plant 1.6%, and Bryophyte 1.5%.
 
 
 ## Data visualization
@@ -95,11 +124,15 @@ sample_meta <- sample_meta %>% rename_at('Sample_Name', ~'Sample_ID')
 sample_meta <- sample_meta %>% rename_at('Species', ~'Herbivore')
 sample_meta <- sample_meta %>% rename_at('Date', ~'Sampling_Date')
 
+# order by Sample_ID
+order(sample_meta$Sample_ID, decreasing = F)
+sample_meta <- sample_meta[order(sample_meta$Sample_ID, decreasing = F),]
+
 # adding herbivore column to GH matadata dataframe
-GH_meta <- cbind(sample_meta, GH[,-1])
-BR_meta <- cbind(sample_meta, BR[,-1])
-EU_meta <- cbind(sample_meta, EU[,-1])
-FU_meta <- cbind(sample_meta, FU[,-1])
+GH_meta  <- merge(sample_meta, GH, by="Sample_ID")
+BR_meta  <- merge(sample_meta, BR, by="Sample_ID")
+EU_meta  <- merge(sample_meta, EU, by="Sample_ID")
+FU_meta  <- merge(sample_meta, FU, by="Sample_ID")
 
 # make a vector of the samples for the analysis
 samples <- as.character(sample_meta$Sample_ID);
@@ -108,6 +141,9 @@ samples <- as.character(sample_meta$Sample_ID);
 sample_meta$Herbivore <- factor(sample_meta$Herbivore, 
                         levels=c("Hare","Moose","Ptarmigan","Reindeer", "Rodent"))
 sample_meta$Herbivore <- factor(sample_meta$Herbivore, levels = rev(levels(sample_meta$Herbivore)))
+
+# export sample_meta
+write.csv(sample_meta, "outputs/sample_meta.csv", row.names = F)
 ```
 
 Creating MOTU relative abundance dataframes 
@@ -142,6 +178,7 @@ BRbar <- merge(BRbar, BR_meta, by="Sample_ID")
 EUbar <- reshape2::melt(EU_tax, id.vars="taxa", value.name = "abun")
 colnames(EUbar)[2] <- "Sample_ID"
 EUbar <- merge(EUbar, EU_meta, by="Sample_ID")
+EUbar <- merge(EUbar, EU_Cat[,1:2], by="taxa")
 
 FUbar <- reshape2::melt(FU_tax, id.vars="taxa", value.name = "abun")
 colnames(FUbar)[2] <- "Sample_ID"
@@ -258,7 +295,7 @@ Eukaryota
 ```{r}
 # Barplot Eukaryota - EU
 barEU <- ggplot(data=EUbar, 
-              mapping=aes(x=Sample_ID,y=abun, fill=taxa))+
+              mapping=aes(x=Sample_ID,y=abun, fill=category))+
   geom_bar(stat = "identity")+
   facet_grid(~Herbivore, scales="free_x")+ 
   theme_bw()+ 
@@ -296,7 +333,7 @@ ggsave(filename="stackbar_EU.pdf",
 Preparing table for data visualization
 Starting from the table of MOTU relative abundances
 ```{r}
-# transpose table of MOTU family abundances (GH_tax)
+# transpose table of MOTU abundances (GH_tax)
 GH_taxt <- as.data.frame(t(GH_tax))
 BR_taxt <- as.data.frame(t(BR_tax))
 EU_taxt <- as.data.frame(t(EU_tax))
@@ -316,10 +353,10 @@ names(FU_taxt) <- FU_taxt[1,]
 FU_taxt <- FU_taxt[-1,]
 
 # convert from character to numeric
-GH_taxt <- as.data.frame(apply(GH_taxt, 2, as.numeric))
-BR_taxt <- as.data.frame(apply(BR_taxt, 2, as.numeric))
-EU_taxt <- as.data.frame(apply(EU_taxt, 2, as.numeric))
-FU_taxt <- as.data.frame(apply(FU_taxt, 2, as.numeric))
+GH_taxt <- as.data.frame(apply(GH_taxt, 2, as.numeric), row.names = GH$Sample_ID)
+BR_taxt <- as.data.frame(apply(BR_taxt, 2, as.numeric), row.names = GH$Sample_ID)
+EU_taxt <- as.data.frame(apply(EU_taxt, 2, as.numeric), row.names = GH$Sample_ID)
+FU_taxt <- as.data.frame(apply(FU_taxt, 2, as.numeric), row.names = GH$Sample_ID)
 ```
 
 Getting list of plant taxa that may have different abundance among herbivores' diets
@@ -342,7 +379,7 @@ print(summary(indFU))
 # sink("outputs/indicator_taxa_GH_herb.txt")
 # summary(indGH)
 # sink()
-# 
+
 # sink("outputs/indicator_taxa_BR_herb.txt")
 # summary(indBR)
 # sink()
@@ -354,7 +391,7 @@ print(summary(indFU))
 # sink("outputs/indicator_taxa_FU_herb.txt")
 # summary(indFU)
 # sink()
-
+# 
 # sink function give error when knitting
 ```
 
@@ -367,15 +404,15 @@ hEU <- read.table("outputs/indicator_taxa_EU_herb.txt", sep="\t")
 hFU <- read.table("outputs/indicator_taxa_FU_herb.txt", sep="\t")
 
 # trim dataframes to only pertinent data (not looking at interaction between herbivore)
-hGH <- as.data.frame(hGH[12:28,])
+hGH <- as.data.frame(hGH[12:31,])
 hBR <- as.data.frame(hBR[12:23,])
-hEU <- as.data.frame(hEU[12:25,])
-hFU <- as.data.frame(hFU[12:30,])
+hEU <- as.data.frame(hEU[12:28,])
+hFU <- as.data.frame(hFU[12:39,])
 
-hGH <- as.data.frame(hGH[-c(2,5,11,16),]) 
+hGH <- as.data.frame(hGH[-c(2,7,10,18),]) 
 hBR <- as.data.frame(hBR[-c(2,5,8),]) 
-hEU <- as.data.frame(hEU[-c(2,6,13),]) 
-hFU <- as.data.frame(hFU[-c(2,7,10),]) 
+hEU <- as.data.frame(hEU[-c(2,5,8,14),]) 
+hFU <- as.data.frame(hFU[-c(2,5,9,17),]) 
 colnames(hGH)="datacol"
 colnames(hBR)="datacol"
 colnames(hEU)="datacol"
@@ -421,13 +458,15 @@ hBRsplit$herb <- c(
 
 hEUsplit$herb <- c(
   rep("Hare", markhEU[2]-markhEU[1]),
-  rep("Reindeer", markhEU[3]-markhEU[2]),
-  rep("Rodent", nrow(hEUsplit)-markhEU[3]+1))
+  rep("Moose", markhEU[3]-markhEU[2]),
+  rep("Reindeer", markhEU[4]-markhEU[3]),
+  rep("Rodent", nrow(hEUsplit)-markhEU[4]+1))
 
 hFUsplit$herb <- c(
   rep("Hare", markhFU[2]-markhFU[1]),
   rep("Moose", markhFU[3]-markhFU[2]),
-  rep("Reindeer", nrow(hFUsplit)-markhFU[3]+1))
+  rep("Reindeer", markhFU[4]-markhFU[3]),
+  rep("Rodent", nrow(hFUsplit)-markhFU[4]+1))
 
 # remove unwanted rows
 hGH <- as.data.frame(hGHsplit[-markhGH,])
@@ -460,11 +499,11 @@ hBR$herbivore <- factor(hBR$herbivore,
 hBR$herbivore <- factor(hBR$herbivore, levels = rev(levels(hBR$herbivore)))
 
 hEU$herbivore <- factor(hEU$herbivore, 
-                        levels=c("Hare","Reindeer","Rodent"))
+                        levels=c("Hare","Moose","Reindeer","Rodent"))
 hEU$herbivore <- factor(hEU$herbivore, levels = rev(levels(hEU$herbivore)))
 
 hFU$herbivore <- factor(hFU$herbivore, 
-                        levels=c("Hare","Moose","Reindeer"))
+                        levels=c("Hare","Moose","Reindeer","Rodent"))
 hFU$herbivore <- factor(hFU$herbivore, levels = rev(levels(hFU$herbivore)))
 ```
 
@@ -681,13 +720,13 @@ colnames(alphaFU)[1]="Sample_ID"
 Preparing alpha-diversity metrics dataframes
 ```{r}
 # rearrange data frames to facilitate plotting in ggplot2
-alphaGHdf <- inner_join(alphaGH[,c(1,3,5,6)], as.data.frame(GH_meta[,c(2,3)]), by="Sample_ID")
+alphaGHdf <- inner_join(alphaGH[,c(1,3,5,6)], as.data.frame(GH_meta[,c(1,3)]), by="Sample_ID")
 
-alphaBRdf <- inner_join(alphaBR[,c(1,3,5,6)], as.data.frame(BR_meta[,c(2,3)]), by="Sample_ID")
+alphaBRdf <- inner_join(alphaBR[,c(1,3,5,6)], as.data.frame(BR_meta[,c(1,3)]), by="Sample_ID")
 
-alphaEUdf <- inner_join(alphaEU[,c(1,3,5,6)], as.data.frame(EU_meta[,c(2,3)]), by="Sample_ID")
+alphaEUdf <- inner_join(alphaEU[,c(1,3,5,6)], as.data.frame(EU_meta[,c(1,3)]), by="Sample_ID")
 
-alphaFUdf <- inner_join(alphaFU[,c(1,3,5,6)], as.data.frame(FU_meta[,c(2,3)]), by="Sample_ID")
+alphaFUdf <- inner_join(alphaFU[,c(1,3,5,6)], as.data.frame(FU_meta[,c(1,3)]), by="Sample_ID")
 
 # melt alphaGHdf for Chao1 boxplots
 ChaoGH <- alphaGHdf[,c(1,2,5)]
@@ -893,9 +932,21 @@ Plotting rarefaction curves
 ```
 
 
-## Data analysis: PERMANOVA test
+## PERMANOVA test
 
 ### adonis2
+
+Computing Bray-Curtis distances between samples
+```{r}
+# Bray-Curtis distance computed on relative abundance data
+# checking for homogeneous dispersion with Betadisper
+
+GHdis <- vegdist(GH_taxt)
+BRdis <- vegdist(BR_taxt)
+EUdis <- vegdist(EU_taxt)
+FUdis <- vegdist(FU_taxt) # we have two reindeer samples which only contain 0
+
+```
 
 PERmutational Multivariate ANalysis of VAriance using adonis2 function from vegan package
 ```{r}
@@ -905,33 +956,26 @@ BR_meta$Herbivore <- as.factor(BR_meta$Herbivore)
 EU_meta$Herbivore <- as.factor(EU_meta$Herbivore)
 FU_meta$Herbivore <- as.factor(FU_meta$Herbivore)
 
-# checking for homogeneous dispersion with Betadisper
-# Bray-Curtis distances between samples
-GHdis <- vegdist(GH[,-1])
-BRdis <- vegdist(BR[,-1])
-EUdis <- vegdist(EU[,-1])
-# FUdis <- vegdist(FU[,-1]) # we have two reindeer samples which olny contain 0
-
 # create a factor with the grouping that I want to use
 groups <- GH_meta$Herbivore
 
 # calculate multivariate dispersions
 mod <- betadisper(GHdis, groups)
 mod
-# we can see that the avarage distance to median is much lower for Ptarmigan and Moose
+# we can see that the average distance to median is much lower for Ptarmigan and Moose
 mod2 <- betadisper(BRdis, groups)
 mod2
 mod3 <- betadisper(EUdis, groups)
 mod3
-# mod4 <- betadisper(FUdis, groups)
-# mod4
+mod4 <- betadisper(FUdis, groups)
+mod4
 
 # Perform anova test
 # test if there is significant variation in the dispersion of the different group of herbivores
 permutest(mod, pairwise = T)
 permutest(mod2, pairwise = T)
 permutest(mod3, pairwise = T)
-# permutest(mod4, pairwise = T)
+permutest(mod4, pairwise = T)
 
 # running PERMANOVA test
 GH_adonis2 <- adonis2(GHdis ~ Herbivore, GH_meta, method = "bray")
@@ -1021,9 +1065,9 @@ Indirect gradient analysis approach which produces an ordination based on a dist
 ```{r results='hide'}
 set.seed(1)
 # running Multidimensional Scaling
-metaMDS(GHdis) #Stress:     0.1626642 -> should be < 0.1 
-metaMDS(BRdis) #Stress:     0.1579963 
-metaMDS(EUdis) #Stress:     0.160832 
+metaMDS(GHdis) #Stress:     0.1559688  -> should be < 0.1 
+metaMDS(BRdis) #Stress:     0.1208233 
+metaMDS(EUdis) #Stress:     0.1419643 
 #metaMDS(FUdis) #Errore in cmdscale(dist, k = k) : NA values not allowed in 'd'
 
 # saving scores as tibble
@@ -1079,44 +1123,6 @@ ggsave(filename="NMDS_GH.pdf",
        units="in",
        dpi=500)
 ```
-
-#### envfit
-```{r}
-library(vegan)
-library(ggplot2)
-library(grid)
-
-# 
-# # calculate distance for NMDS
-# NMDS.log<-log1p(dune)
-# set.seed(42)
-# sol <- metaMDS(NMDS.log)
-# 
-# scrs <- as.data.frame(scores(sol, display = "sites"))
-# scrs <- cbind(scrs, Group = GH_meta$Herbivore)
-# 
-# 
-# # transpose category df for envfit
-# tGH_Cat <- as.data.frame(t(GH_Cat[,-1]))
-# colnames(tGH_Cat) <- tGH_Cat[1,]
-# tGH_Cat <- tGH_Cat[-c(1,42),]
-# 
-# vf <- envfit(metaMDS(GHdis), tGH_Cat, perm = 999)
-# 
-# spp.scrs <- as.data.frame(scores(vf, display = "vectors"))
-# spp.scrs <- cbind(spp.scrs, Species = rownames(spp.scrs))
-# 
-# p <- ggplot(scrs) +
-#   geom_point(mapping = aes(x = NMDS1, y = NMDS2, colour = Group)) +
-#   coord_fixed() + ## need aspect ratio of 1!
-#   geom_segment(data = spp.scrs,
-#                aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-#                arrow = arrow(length = unit(0.25, "cm")), colour = "grey") +
-#   geom_text(data = spp.scrs, aes(x = NMDS1, y = NMDS2, label = Species),
-#             size = 3)
-
-```
-
 
 Bryophytes
 ```{r}
@@ -1208,7 +1214,7 @@ Fungi
 
 Better ordination method than PCA since allows to use distances different than Eucledian, Bray-Curtis is in fact better for ecological studies
 ```{r results='hide'}
-# running PCoA witth cmdscale()
+# running PCoA with cmdscale()
 pcoaGH <- cmdscale(GHdis, k=2, eig=T, add = T)
 positions <- pcoaGH$points
 colnames(positions) <- c("pcoa1", "pcoa2")
@@ -1392,13 +1398,6 @@ Fungi
 #        height=4,
 #        units="in",
 #        dpi=500)
-```
-
-
-### RDA - Redundancy Analysis
-
-```{r}
-
 ```
 
 
