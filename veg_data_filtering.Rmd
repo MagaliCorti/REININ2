@@ -53,7 +53,7 @@ Finn_EU <- Finn_EU %>%
 ```
 
 #### Filtering data that has less than 97% identity with the Eukariotic reference dataset
-97% is the minimal, and one of the most thresholds that are used in the analysis of metabarcoding outputs.
+97% is the minimal, and one of the thresholds that are most used in the analysis of metabarcoding outputs.
 ```{r}
 # subsetting dataframe: all rows which best_identity.db_EUKA is greater than 0.97
 F_EU <- F_EU %>% 
@@ -68,15 +68,6 @@ Finn_EU <- Finn_EU %>%
 In our data, even after the previous data filtering during bioinformatic analysis, we have some probable mis-assignement or some contamination from other sources of DNA. Since our faeces samples come from herbivore species we assume that Gallus gallus shouldn't be on the list of dietary items, nor other mammals (even though reindeer have been occasionally witnessed feeding on lemmings during the winter).
 ```{r}
 # subsetting dataframe: 
-
-# keeping all rows which scientific name is different than Gallus gallus and Boreoeutheria
-#F_EU <- F_EU %>% 
-#  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria" & scientific_name!="Salmonidae" & scientific_name!="Rattus norvegicus" & scientific_name!="Homo sapiens")
-#M_EU <- M_EU %>% 
-#  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria")
-#Finn_EU <- Finn_EU %>% 
-#  subset(scientific_name!="Gallus gallus" & scientific_name!="Boreoeutheria")
-
 # excluding data that have rank of kingdom
 # not that much informative
 F_EU <- F_EU %>% 
