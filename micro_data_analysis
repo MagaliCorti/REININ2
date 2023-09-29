@@ -1,0 +1,757 @@
+---
+title: "Microbial analysis"
+author: "Magali Corti"
+date: "26/9/2023"
+output: html_document
+---
+
+
+Loading packages
+```{r message=FALSE, warning=FALSE, results='hide'}
+# install.packages("Rtools")
+packages <- c("tidyverse","reshape2", "vegan", "stringr", "gridExtra", "ape", "RColorBrewer", "knitr","cowplot","openxlsx","circlize","plotly","phyloseq","decontam","ComplexHeatmap","car","tidyr","picante","indicspecies","lme4","lmtest","multcomp","grid","Biostrings","QsRutils","phangorn","pheatmap","dada2","DECIPHER","furrr","harrietr","ggtree","ppcor","devtools","Rtools","pairwiseAdonis","mvabund", "glue", "factoextra", "viridis", "janitor", "ggvegan")
+sapply(packages, require, character.only = TRUE)
+```
+
+Importing data
+```{r}
+# asv table
+asv_tax <- read.csv(file = "outputs/asv_tax.csv", header = T)
+
+# sample metadata
+sample_meta <- read.csv(file = "data/sample_meta.csv", header = T)
+
+# plant data with categories
+GH_Cat <- read.csv("data/plant_cat.csv", header = T, sep = ";")
+```
+
+
+
+## Simple statistics
+
+Percentage of Archaea vs. Bacteria
+```{r}
+asv_tax[,-c(1:9)] <- asv_tax[,-c(1:9)]  %>% mutate_all(as.numeric)
+tot <- rowSums(asv_tax[,-c(1:9)])
+tot <- asv_tax %>% add_column("total" = tot)
+
+tot <- tot[,-c(9:48)]
+
+perc <- tot %>% 
+  group_by(Kingdom) %>% 
+  summarise_if(is.numeric, sum)
+
+# Archaea = 47491
+# Bacteria = 7530904
+
+perc_arch = 47491/(47491+7530904)*100
+perc_arch
+perc_bact = 7530904/(47491+7530904)*100
+perc_bact
+
+```
+We can see that Archaea represent 0.63 % of the detected diversity, while Bacteria are dominant with a detected occurrece in the samples of 99.37 %.
+
+Percentage of each Bacterial Phylum
+```{r}
+perc <- tot %>% 
+  group_by(Phylum) %>% 
+  summarise_if(is.numeric, sum)
+
+perc_phyla <- perc %>% mutate(Percentage = total/sum(total)*100)
+perc_phyla
+```
+The most abundant phylum is Bacteroidota with a percentage of 44.2%, we have then Proteobacteria with 31.1%, Firmicutes 7.53%, Actinobacteriota 7.12%, Acidobacteriota 4.75%, and Cyanobacteria 3.03%.
+All other phyla have an occurrence of less than 1%.
+
+Percentage of each Proteobacteria Class
+```{r}
+perc_proteo <- tot %>% subset(Phylum=="Proteobacteria")
+
+perc_proteo <- perc_proteo %>% 
+  group_by(Class) %>% 
+  summarise_if(is.numeric, sum)
+
+perc_proteo <- perc_proteo %>% mutate(Percentage = total/sum(total)*100)
+perc_proteo
+```
+Alphaproteobacteria represent 58.4% of the total Proteobacteria, Gammaproteobacteria accounts for 36.4%, while 5.2% are taxonomically undetermined at class level.
+
+
+Percentage of each Archaea Family
+```{r}
+perc_archaea <- tot %>% subset(Kingdom=="Archaea")
+
+perc_archaea <- perc_archaea %>% 
+  group_by(Family) %>% 
+  summarise_if(is.numeric, sum)
+
+perc_archaea <- perc_archaea %>% mutate(Percentage = total/sum(total)*100)
+perc_archaea
+```
+The great majority of the Archea are represented by the Family of Methanobacteriaceae, with 99.6 % prevalence, Methanocorpusculaceae represent 0.35 %, while Methanosarcinaceae 0.05 %.
+
+
+
+## Data visualization
+
+### Stacked barplots
+
+Custumize color palette
+```{r}
+#Create a custom color scale
+
+# myCol <- c(viridis::viridis(n = 5))
+# library(scales)
+# show_col(hue_pal()(5))
+myCol <- c("#E76BF3", "#00B0F6", "#00BF7D", "#A3A500", "#F8766D")
+names(myCol) <- levels(sample_meta$Herbivore)
+```
+
+
+#### Archaea
+
+5 ASVs were detected
+Two phyla of Archaea are detected: Euryarchaeota, and Halobacterota.
+Three class: Methanobacteria, Methanomicrobia, and Methanosarcinia.
+I decided to look at family level since it's the highest resolution it can get for all this 5 ASVs
+
+Create Archaea composition barplots
+```{r}
+# select Archaea taxonomic rank
+archaea <-  asv_tax %>% subset(Kingdom=="Archaea")
+
+# dereplication
+archaea <- archaea %>% 
+  group_by(Family) %>% 
+  summarise_if(is.numeric, sum)
+```
+
+Computing total percentages by herbivore
+```{r}
+# transposing and assigning the herbivore
+archaea_t <- archaea[,-1]
+rownames(archaea_t) <- archaea$Family
+
+archaea_t <- as.data.frame(t(archaea_t))
+archaea_t <- tibble::rownames_to_column(archaea_t, "Sample_ID")
+archaea_t <- left_join(sample_meta[2:3], archaea_t)
+
+# summarising reads per hebirvore
+archaea_t <- archaea_t %>% 
+  group_by(Herbivore) %>% 
+  summarise_if(is.numeric, sum)
+
+# computing percentages per Archaea family
+arch_perc <- as.data.frame(lapply(archaea_t[,-1], function(x) (x/sum(x))*100))
+rownames(arch_perc) <- archaea_t$Herbivore
+arch_perc
+
+archaea_t <- as.data.frame(t(archaea_t))
+archaea_t <- archaea_t %>% row_to_names(row_number = 1)
+archaea_t <- archaea_t  %>% mutate_all(as.numeric)
+archaea_t <- tibble::rownames_to_column(archaea_t, "Family")
+
+# computing percentages
+archaea_t[,-1] <- lapply(archaea_t[,-1], function(x) (x/sum(x))*100)
+archaea_t
+```
+
+Calculate ASV relative abundances per sample
+```{r}
+archaea[,-1] <- lapply(archaea[,-1], function(x) (x/sum(x))*100)
+
+# melt dataframe for ggplot
+arcbar <- reshape2::melt(archaea, id.vars="Family", value.name = "abun")
+colnames(arcbar)[2] <- "Sample_ID"
+arcbar <- merge(arcbar, sample_meta[, 2:3], by="Sample_ID")
+arcbar$abun[is.nan(arcbar$abun)] <- 0 
+```
+
+Plotting the stacked barplots
+Archaea level
+```{r}
+# Barplot Archaea
+bararc <- ggplot(data=arcbar, 
+              mapping=aes(x=Sample_ID, y=abun, fill=Family))+
+  geom_bar(stat = "identity")+
+  facet_grid(~Herbivore, scales="free_x")+ 
+  theme_bw()+ 
+  labs(x = "",
+       y = "Relative Abundance (%)",
+       fill="Archea Family")+
+  theme(legend.position="right", 
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14, face="bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text.y = element_text(size=12),
+        axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),
+        strip.text = element_text(size =10, face="bold"))
+
+plot(bararc)
+
+# save figure
+ggsave(filename="stackbar_archaea.pdf",
+       device="pdf",path="outputs/figures",
+       plot=bararc,
+       width=10.5,
+       height=6,
+       units="in",
+       dpi=500)
+```
+
+
+
+#### Phylum level
+
+Create Phylum level composition barplots      
+```{r}
+# select bacterial taxonomic rank
+phylum <-  asv_tax %>% dplyr::select(Phylum, 9:48)
+
+# dereplication
+phylum <- phylum %>% 
+  group_by(Phylum) %>% 
+  summarise_if(is.numeric, sum)
+```
+
+Computing total percentages by herbivore
+```{r}
+# transposing and assigning the herbivore
+phylum_t <- phylum[,-1]
+rownames(phylum_t) <- phylum$Phylum
+
+phylum_t <- as.data.frame(t(phylum_t))
+phylum_t <- tibble::rownames_to_column(phylum_t, "Sample_ID")
+phylum_t <- left_join(sample_meta[2:3], phylum_t)
+
+# summarising reads per hebirvore
+phylum_t <- phylum_t %>% 
+  group_by(Herbivore) %>% 
+  summarise_if(is.numeric, sum)
+
+phylum_t <- as.data.frame(t(phylum_t))
+phylum_t <- phylum_t %>% row_to_names(row_number = 1)
+phylum_t <- phylum_t  %>% mutate_all(as.numeric)
+phylum_t <- tibble::rownames_to_column(phylum_t, "Phylum")
+
+# computing percentages
+phylum_t[,-1] <- lapply(phylum_t[,-1], function(x) (x/sum(x))*100)
+
+# excluding phyla < abundant then 1% between herbivores
+phylum_t$AVG=rowMeans(phylum_t[,-1])
+phylum_t=phylum_t[phylum_t$AVG>1,]
+phylum_t$AVG=NULL
+
+# denote the rest of phyla as "Other"
+newrow=c(NA, 100-colSums(phylum_t[2:ncol(phylum_t)]))
+phylum_t=rbind(phylum_t, newrow)
+phylum_t$Phylum=as.character(phylum_t$Phylum)
+phylum_t[nrow(phylum_t),1]="Other"
+
+phylum_t 
+```
+
+Calculate ASV relative abundances per  sample
+```{r}
+phylum[,-1] <- lapply(phylum[,-1], function(x) (x/sum(x))*100)
+#print(colSums(phylum[-1]))
+
+# keep phyla >1% relative abundance across samples
+phylum$AVG=rowMeans(phylum[,-1])
+phylum=phylum[phylum$AVG>1,]
+phylum$AVG=NULL
+
+# denote the rest of phyla as "Other"
+newrow=c(NA, 100-colSums(phylum[2:ncol(phylum)]))
+phylum=rbind(phylum, newrow)
+phylum$Phylum=as.character(phylum$Phylum)
+phylum[nrow(phylum),1]="Other"
+
+# melt dataframe for ggplot
+phybar <- reshape2::melt(phylum, id.vars="Phylum", value.name = "abun")
+colnames(phybar)[2] <- "Sample_ID"
+phybar <- merge(phybar, sample_meta[, 2:3], by="Sample_ID")
+```
+
+Plotting the stacked barplots
+Phylum level
+```{r}
+# Barplot Phylum
+barphy <- ggplot(data=phybar, 
+              mapping=aes(x=Sample_ID, y=abun, fill=Phylum))+
+  geom_bar(stat = "identity")+
+  facet_grid(~Herbivore, scales="free_x")+ 
+  theme_bw()+ 
+  labs(x = "",
+       y = "Relative Abundance (%)",
+       fill="Bacterial phylum")+
+  theme(legend.position="right", 
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14, face="bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text.y = element_text(size=12),
+        axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),
+        strip.text = element_text(size =10, face="bold"))
+
+plot(barphy)
+
+# save figure
+ggsave(filename="stackbar_phylum.pdf",
+       device="pdf",path="outputs/figures",
+       plot=barphy,
+       width=10.5,
+       height=6,
+       units="in",
+       dpi=500)
+```
+It's evident that Reindeer differs completely from all other groups, even if 2 reindeer samples seams to have a similiar composition to the other herbivore.
+The difference between the other four herbivore groups doesn't seam remarkable, except from a higher percentage of Actinobacteriota in Moose, and Acidobacteria being more abundant in Rodent, and less in Moose and Ptarmigan.
+
+
+#### Order level
+
+Create Order level composition barplots for Proteobacteria Phylum   
+```{r}
+# select bacterial taxonomic rank
+class <-  asv_tax %>% subset(Phylum=="Proteobacteria")
+
+order <-  class %>% dplyr::select(Order, 9:48)
+
+# dereplication
+order <- order %>% 
+  group_by(Order) %>% 
+  summarise_if(is.numeric, sum)
+
+order <- order[-1,]
+```
+
+Calculate ASV relative abundances 
+```{r}
+order[,-1] <- lapply(order[,-1], function(x) (x/sum(x))*100)
+#print(colSums(order[-1]))
+
+# keep order >1% relative abundance across samples
+order$AVG=rowMeans(order[,-1])
+order=order[order$AVG>1,]
+order$AVG=NULL
+
+# denote the rest of phyla as "Other"
+newrow=c(NA, 100-colSums(order[2:ncol(order)]))
+order=rbind(order, newrow)
+order$Order=as.character(order$Order)
+order[nrow(order),1]="Other"
+
+# melt dataframe for ggplot
+ordbar <- reshape2::melt(order, id.vars="Order", value.name = "abun")
+colnames(ordbar)[2] <- "Sample_ID"
+ordbar <- merge(ordbar, sample_meta[, 2:3], by="Sample_ID")
+```
+
+Plotting the stacked barplots of Proteobacteria at order level
+```{r}
+# Barplot Order
+barord <- ggplot(data=ordbar, 
+              mapping=aes(x=Sample_ID, y=abun, fill=Order))+
+  geom_bar(stat = "identity")+
+  facet_grid(~Herbivore, scales="free_x")+ 
+  theme_bw()+ 
+  labs(x = "",
+       y = "Relative Abundance (%)",
+       fill="Proteobacteria order")+
+  theme(legend.position="right", 
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14, face="bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.title.y = element_text(size=14, face="bold"),
+        axis.text.y = element_text(size=12),
+        axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),
+        strip.text = element_text(size =10, face="bold"))
+
+plot(barord)
+
+# save figure
+ggsave(filename="stackbar_proteobact_order.pdf",
+       device="pdf",path="outputs/figures",
+       plot=barord,
+       width=10.5,
+       height=6,
+       units="in",
+       dpi=500)
+```
+We can see a more variable abundance of taxa when looking at Proteobacteria Orders.
+
+
+
+### Microbial taxa associated with herbivore as determined by idicator species analysis
+
+
+
+## Ordination analysis
+
+Checking sequencing depth
+```{r}
+# computing the sum of each column (sample total reads)
+seq_depth <- asv_tax[,-c(2:8)]
+seq_depth <- column_to_rownames(seq_depth, 'taxonomy')
+seq_depth <- seq_depth %>% bind_rows(summarise_all(., ~if(is.numeric(.)) sum(.) else "Total"))
+
+seq_depth <- as.data.frame(t(seq_depth))
+names(seq_depth)[692] <- "Total"
+
+# join with herbivore information
+seq_depth <- tibble::rownames_to_column(seq_depth, "Sample_ID")
+seq_depth <- left_join(sample_meta[2:3], seq_depth)
+
+# ANOVA - checking differences in total reads in different herbivore groups
+seq_depth_aov <- aov( log(Total) ~ Herbivore, data = seq_depth)
+summary(seq_depth_aov) # not sign - > no difference
+
+# boxplot
+boxplot(log(Total) ~ Herbivore, data = seq_depth)
+```
+
+
+### NMDS - Non-metric MultiDimensional Scaling
+
+Computing Bray-Curtis distances between samples
+```{r}
+# Bray-Curtis distance computed on relative abundance data
+
+# computing relative abundances
+t_asv_tax_rel <- asv_tax
+t_asv_tax_rel[,-c(1:8)] <- lapply(t_asv_tax_rel[,-c(1:8)], function(x) (x/sum(x))*100)
+
+# transposing 
+t_asv_tax_rel <- as.data.frame(t(t_asv_tax_rel))
+t_asv_tax_rel <- t_asv_tax_rel %>% row_to_names(row_number = 1)
+t_asv_tax_rel <- t_asv_tax_rel[-c(1:7),]
+
+t_asv_tax_rel <- t_asv_tax_rel  %>% mutate_all(as.numeric)
+
+# Bray-Curtis distances between samples
+microdis <- vegdist(t_asv_tax_rel)
+```
+
+Running metaMDS
+```{r results='hide'}
+set.seed(1)
+# running Multidimensional Scaling
+metaMDS_micro <- metaMDS(microdis) # Stress:     0.07192146 
+
+# saving scores as tibble
+micro_NMDS <- metaMDS(microdis) %>%
+  scores() %>%
+  as_tibble(rownames = "Sample_ID")
+
+# dataframe for plotting 
+meta_microNMDS <- inner_join(sample_meta, micro_NMDS)
+```
+
+Plotting NMDS
+```{r}
+# NMDS plot
+p_NMDS_micro <- meta_microNMDS %>%
+  ggplot(aes(x=NMDS1, y=NMDS2, color=Herbivore)) +
+  geom_point() +
+  stat_ellipse() + 
+  labs(x = "NMDS 1",
+       y = "NMDS 2",
+       title="NMDS of microbial composition of 5 Herbivore taxa") +
+  theme(plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold"))
+
+plot(p_NMDS_micro)
+
+# exporting figure
+ggsave(filename="NMDS_micro.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_NMDS_micro,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+#### envfit
+
+Using Plant Categories as environmental variable to fit to the microbial NMDS
+```{r}
+# selecting sites scores from the NMDS and assigning hetrbivore group
+scrs <- as.data.frame(scores(metaMDS_micro, display = "sites"))
+scrs <- cbind(scrs, Herbivore = sample_meta$Herbivore)
+
+# summarise by category
+GH_Cat <- GH_Cat %>% 
+  group_by(category) %>% 
+  summarise_if(is.numeric, sum)
+
+# transpose category df for envfit
+tGH_Cat <- as.data.frame(t(GH_Cat))
+colnames(tGH_Cat) <- tGH_Cat[1,]
+tGH_Cat <- tGH_Cat[-c(1,42),]
+tGH_Cat <- tGH_Cat  %>% mutate_all(as.numeric)
+
+# running envfit function
+vf <- envfit(metaMDS_micro, tGH_Cat, perm = 999, na.rm = TRUE)
+vf
+
+# selecting vector scores from envfit
+spp.scrs <- as.data.frame(scores(vf, display = "vectors"))
+spp.scrs <- cbind(spp.scrs, Species = rownames(spp.scrs))
+```
+Only Forb is significant, while Moss and Shrub is almost significant
+
+Plotting NMDS with envfit vectors
+```{r}
+p_envfitGH <- ggplot(scrs) +
+  geom_point(mapping = aes(x = NMDS1, y = NMDS2, colour = Herbivore)) +
+  coord_fixed() + ## need aspect ratio of 1!
+  geom_segment(data = spp.scrs,
+               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+               arrow = arrow(length = unit(0.25, "cm")), colour = "grey") +
+  geom_text(data = spp.scrs, aes(x = NMDS1, y = NMDS2, label = Species),
+            size = 4)
+p_envfitGH
+
+# exporting figure
+ggsave(filename="NMDS_envfit_GH.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_envfitGH,
+       width=12,
+       height=8,
+       units="in",
+       dpi=700)
+```
+
+
+
+### PCoA - Principal Coordinate Analysis
+
+Better ordination method than PCA since allows to use distances different than Eucledian, Bray-Curtis is in fact better for ecological studies
+```{r}
+# running PCoA with cmdscale()
+pcoa_micro <- cmdscale(microdis, k=2, eig=T, add = T)
+positions <- pcoa_micro$points
+colnames(positions) <- c("pcoa1", "pcoa2")
+#pcoa_micro
+```
+
+Computing percentage explained by the two first axis
+```{r}
+percent_explained <- 100*pcoa_micro$eig/sum(pcoa_micro$eig)
+percent_explained[1:2] 
+
+perc_expl <- format(round(percent_explained[1:2], digits = 1), nsmall=1, trim=T)
+
+labs <- c(glue("PCo 1 ({perc_expl[1]}%)"), 
+          glue("PCo 2 ({perc_expl[2]}%)"))
+
+# tibble for plotting PCoA
+micro_pcoa <- positions %>%
+  as_tibble(rownames = "Sample_ID") 
+
+# dataframe for plotting 
+meta_pcoa <- inner_join(sample_meta, micro_pcoa)
+```
+
+
+Plotting PCoA
+```{r}
+# PCoA plot
+p_pcoa_micro <- meta_pcoa %>%
+  ggplot(aes(x=pcoa1, y=pcoa2, color=Herbivore)) + 
+  geom_point() +
+  labs(x=labs[1], y=labs[2], 
+       title="PCoA of the microbial composition of 5 Herbivore taxa") +
+  theme(plot.title = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        axis.text.x=element_text(size=10, angle = 45, vjust = 0.66),
+        strip.text = element_text(size =11, face="bold")
+) +
+  stat_ellipse()
+  
+plot(p_pcoa_micro)
+
+# exporting figure
+ggsave(filename="PCoA_micro.pdf",
+       device="pdf",path="outputs/figures",
+       plot=p_pcoa_micro,
+       width=6.5,
+       height=4,
+       units="in",
+       dpi=500)
+```
+
+
+### RDA - Redundancy Analysis
+
+Redundancy analysis (RDA) is a method to extract and summarise the variation in a set of response variables that can be explained by a set of explanatory variables. More accurately, RDA is a direct gradient analysis technique which summarises linear relationships between components of response variables that are "redundant" with (i.e. "explained" by) a set of explanatory variables. RDA can also be considered a constrained version of principal components analysis (PCA), wherein canonical axes - built from linear combinations of response variables - must also be linear combinations of the explanatory variables (i.e. fitted by MLR). The RDA approach generates one ordination in the space defined by the matrix of response variables and another in the space defined by the matrix of explanatory variables.
+
+Running an RDA using Plant Categories as constrainnig environmental variables
+```{r}
+# running RDA
+micro_rda <- rda(t_asv_tax_rel ~ ., tGH_Cat)
+#summary(micro_rda)
+micro_rda
+```
+
+Testing if the model we used is the best one
+```{r}
+rda1 <- step(micro_rda, scope = formula(micro_rda), test="perm")
+summary(rda1)
+
+# checking for collinearity 
+vif.cca(rda1)
+
+# no values over 20, variable are not inflating each other, our model is already good
+```
+
+Checking for significance
+```{r}
+RsquareAdj(micro_rda)
+
+# model
+anova(micro_rda, perm.max=1000) # rda signif
+# axis
+anova(micro_rda, by="axis", perm.max=1000) # first axis signif
+# environmental terms (categories)
+anova(micro_rda, by="terms", perm.max=1000) # Betula, Forb, Shrub and Vaccinium signif
+# order
+anova(micro_rda, by="margin", perm.max=1000) # signif for Betula, Forb and Shrub
+```
+
+Plotting RDA
+```{r}
+# plotting with ggplot
+autoplot(micro_rda, arrows = TRUE, geom = "point")
+
+# plotting
+modelGH <- ordiplot(micro_rda, type = "none", scaling = 2, cex = 10, xlab = "RDA 1 (21.7%)", ylab = "RDA 2 (7.0%)", cex.lab =1.25)
+points(micro_rda, col=myCol, cex = 1)
+points(micro_rda, dis="sp", col="darkgrey")
+text(micro_rda, display = "bp", col="black")
+```
+
+
+## PERMANOVA test
+
+### adonis2
+
+PERmutational Multivariate ANalysis of VAriance using adonis2 function from vegan package
+```{r}
+ # making column Herbivore a factor
+sample_meta$Herbivore <- as.factor(sample_meta$Herbivore)
+
+# Bray-Curtis distances between samples : microdis
+
+# create a factor with the grouping that I want to use
+groups <- sample_meta$Herbivore
+
+# checking for homogeneous dispersion with Betadisper - calculate multivariate dispersions
+mod <- betadisper(microdis, groups)
+mod
+# we can see that the average distance to median is much higher for Reindeer
+
+# Perform anova test
+# test if there is significant variation in the dispersion of the different group of herbivores
+permutest(mod, pairwise = T)
+# Reindeer signif diff from any herbivore other than Rodent, all other pairwise tests are nott significant
+
+# running PERMANOVA test
+micro_adonis2 <- adonis2(microdis ~ Herbivore, sample_meta, method = "bray")
+micro_adonis2
+```
+
+Pairwise multilevel comparison using parwise.adonis()
+```{r}
+pwado_micro <- pairwise.adonis(t_asv_tax_rel, groups)
+pwado_micro
+```
+
+
+### manyglm
+
+Fitting Generalized Linear Models for Multivariate Abundance Data
+Less biased by the use of distance matrix with respect to PERMANOVA
+```{r}
+# running manyglm on abundance data (original asv table)
+
+# transposing asv table
+t_asv_tax <- as.data.frame(t(asv_tax))
+t_asv_tax <- t_asv_tax %>% row_to_names(row_number = 1)
+t_asv_tax <- t_asv_tax[-c(1:7),]
+t_asv_tax <- t_asv_tax  %>% mutate_all(as.numeric)
+
+# converting abundance table to an mvabund object
+micro_abund <- mvabund(t_asv_tax)
+
+# fitting glm to data using group of herbivore as a factor 
+micro_mglm <- manyglm(micro_abund ~ groups)
+summary_micro_mglm <- summary(micro_mglm)
+summary_micro_mglm
+
+plot(micro_mglm, which = c(1:3))
+
+# computing an analysis of deviance table (anova) for a multivariate generalized linear model fit
+glm_anova_micro <- anova.manyglm(micro_mglm)
+glm_anova_micro
+```
+
+## Mantel test
+
+The Mantel test (Mantel, 1967) may be used to calculate correlations between corresponding positions of two (dis)similarity or distance matrices  derived from either multi- or univariate data. 
+
+Null hypothesis: The distances among objects in a matrix of response variables are not linearly correlated with another matrix of explanatory variables.
+
+Assumptions:
+• Unless using the ranked Mantel statistic, the Mantel approach is suited to detect linear relationships between (dis)similarity matrices.
+• Response and explanatory variables must be independent. That is, each matrix must represent a different data set. If one matrix is in any way derived from the other, the test is invalid.
+Correlations always range between -1 and +1.
+
+Compute Bray-Curtis distances for dietary Categories
+```{r}
+# create a vector with the Sample_ID
+Sample_ID <- colnames(GH_Cat)
+Sample_ID <- Sample_ID[-c(1,42)] 
+
+# compute relative abundance
+tGH_Cat_rel <- as.data.frame(lapply(tGH_Cat, function(x) (x/sum(x))*100))
+rownames(tGH_Cat_rel) <- Sample_ID
+
+# compute Bray-Curtis distances
+GHdis <- vegdist(tGH_Cat_rel)
+```
+
+Running the Mantel test
+```{r}
+# Mantel test
+microGH_mantel <- mantel(as.matrix(microdis), as.matrix(GHdis))
+microGH_mantel
+```
+
+Mantel statistic r: 0.2115     
+positive correlation 
+
+Significance: 0.001           
+the test is significant, meaning that the distance between samples in in one matrix are correlated with the distance
+
+
+
+
+
