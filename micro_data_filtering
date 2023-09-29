@@ -1,0 +1,249 @@
+---
+title: "Data Filtering"
+author: "Magali Corti"
+date: "9/25/2023"
+output: html_document
+---
+
+Loading packages
+```{r message=FALSE, warning=FALSE, results='hide'}
+# install.packages("Rtools")
+packages <- c("tidyverse","reshape2", "vegan", "stringr", "gridExtra", "ape", "RColorBrewer", "knitr","cowplot","openxlsx","circlize","plotly","phyloseq","decontam","ComplexHeatmap","car","tidyr","picante","indicspecies","lme4","lmtest","multcomp","grid","Biostrings","QsRutils","phangorn","pheatmap","dada2","DECIPHER","furrr","harrietr","ggtree","ppcor","devtools","Rtools","pairwiseAdonis","mvabund", "glue", "factoextra", "viridis", "janitor")
+sapply(packages, require, character.only = TRUE)
+```
+
+Importing data
+```{r}
+# importing .tab files (tab separated files)
+F_read <- read.table(file = "data/primer_F.table2", header = T, sep = "\t")
+R_read <- read.table(file = "data/primer_R.table2", header = T, sep = "\t")
+```
+
+
+
+# Filtering data
+
+#### Sample manipulation
+
+Adding missing samples
+```{r}
+R_read <- R_read %>% add_column("BACT03_122_R2" = 0, .before = "BACT03_123_R2")
+F_read <- F_read %>% add_column("BACT03_122_R1" = 0, .before = "BACT03_123_R1")
+F_read <- F_read %>% add_column("BACT03_170_R1" = 0, .before = "BACT03_171_R1")
+F_read <- F_read %>% add_column("BACT03_180_R1" = 0, .before = "BACT03_181_R1")
+```
+
+Changing sample names
+```{r}
+# loading sample name dataframe
+samp_name <- read.csv("data/sample_names.csv", header = T, sep = ";")
+
+# transposing dataframes
+tF_read <- as.data.frame(t(F_read))
+tR_read <- as.data.frame(t(R_read))
+
+# adding sample names
+tR_read <- tR_read %>% add_column(samp_name$variable, .before = "V1")
+tF_read <- tF_read %>% add_column(samp_name$variable, .before = "V1")
+
+# make first column rownames
+rownames(tR_read) <- tR_read[,1]
+tR_read <- tR_read[,-1]
+rownames(tF_read) <- tF_read[,1]
+tF_read <- tF_read[,-1]
+
+# # exporting the dataframe of our samples in csv format
+# write.csv(tF_read, "outputs/tF_read.csv", row.names = T)
+# write.csv(tR_read, "outputs/tR_read.csv", row.names = T)
+
+# transposing back dataframes
+# now our occurrences table have the correct sample name
+F_read <- as.data.frame(t(tF_read))
+R_read <- as.data.frame(t(tR_read))
+```
+
+
+
+#### Identity filtering
+
+Filtering data that has less than 97% identity with the reference database
+```{r}
+# subsetting dataframe: all rows which identity is greater than 0.97
+# checking we can see that the remaning sequences are all 100% identity
+F_read_97 <- F_read %>% subset(identity>0.97)
+R_read_97 <- R_read %>% subset(identity>0.97)
+```
+
+
+
+#### Merging Forward and Reverse
+
+Merging Forward and Reverse primer datasets by taxonomy
+```{r}
+# convert character to numeric
+F_read_97[,c(14:146)] <- as.data.frame(apply(F_read_97[ ,c(14:146)], 2, as.numeric))
+R_read_97[,c(14:146)] <- as.data.frame(apply(R_read_97[ ,c(14:146)], 2, as.numeric))
+
+# preparing df to merge
+F_read_97_join <- F_read_97[, c(12,14:146)]
+R_read_97_join <- R_read_97[, c(12,14:146)]  
+
+# joining
+FR_read_97 <- full_join(F_read_97_join, R_read_97_join, by = "taxonomy")
+
+# NA to 0
+FR_read_97 <- FR_read_97 %>% replace(is.na(.), 0)
+```
+
+Dereplication
+```{r}
+table(duplicated(FR_read_97$taxonomy))
+
+# dereplication by taxonomy
+FR_read_97_derep <- FR_read_97 %>% 
+  group_by(taxonomy) %>% 
+  summarise_if(is.numeric, sum)
+```
+
+Resolving sample replicates from merging
+```{r}
+# we exclude first column (taxonomy) and transpose
+FR_read_97_derep_t <- data.frame(t(FR_read_97_derep[,-1]))
+# rename the table by taxonomy
+names(FR_read_97_derep_t) <- FR_read_97_derep$taxonomy
+
+# make sample names one of the columns of the data
+FR_read_97_derep_t <- FR_read_97_derep_t %>% 
+  rownames_to_column("Sequencing_ID")
+
+# Prepare an id that represents replicates (by same name) and place that after "Sequencing_ID"
+FR_read_97_derep_t <- FR_read_97_derep_t  %>% 
+  add_column(Sample_ID = str_replace_all(FR_read_97_derep_t$Sequencing_ID, ".x|.y", ""), .after = "Sequencing_ID")
+
+# get read sum of the replicates
+FR_read_97_derep_t_sum <- FR_read_97_derep_t %>% 
+  dplyr::select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+```
+
+
+
+#### Resolving PCR replicates
+
+```{r}
+# rename first column
+colnames(FR_read_97_derep_t_sum)[1] <- "Sequencing_ID"
+
+# Prepare an id that represents PCR replicates (by same name) and place that after "Sequencing_ID"
+FR_read_97_derep_t_sum <- FR_read_97_derep_t_sum  %>% 
+  add_column(Sample_ID = str_replace_all(FR_read_97_derep_t_sum$Sequencing_ID, "_R1|_R2|_R3", ""), .after = "Sequencing_ID")
+
+# get read sum of the replicates
+FR_read_97_derep_t_sum_R <- FR_read_97_derep_t_sum %>% 
+  dplyr::select(-Sequencing_ID) %>% 
+  group_by(Sample_ID) %>% 
+  summarise_if(is.numeric, sum)
+
+#rownames(FR_read_97_derep_t_sum_R) <- FR_read_97_derep_t_sum_R$Sample_ID
+
+# erasing Undetermined
+FR_read_97_derep_t_sum_R <- FR_read_97_derep_t_sum_R[-5,]
+```
+
+Transposing
+```{r}
+FR_clean <- as.data.frame(t(FR_read_97_derep_t_sum_R))
+FR_clean <- FR_clean %>% row_to_names(row_number = 1)
+```
+
+
+
+#### Identifying contaminants in marker-gene data
+
+Creating a metadata dataframe with a Sample_or_Control column for running decontam function
+```{r}
+FR_meta <- as.data.frame(FR_read_97_derep_t_sum_R$Sample_ID)
+names(FR_meta) <- "Sample_ID"
+
+FR_meta$Sample_or_Control <- "True Sample"
+FR_meta$Sample_or_Control[grepl("NC", FR_meta$Sample_ID)] <- "Control Sample"
+FR_meta$Sample_or_Control[grepl("C00", FR_meta$Sample_ID)] <- "Control Sample"
+```
+
+Creating phyloseq object
+```{r}
+FR_to_ps <- as.data.frame(FR_read_97_derep_t_sum_R)
+
+# first column to rowname
+row.names(FR_to_ps) <- FR_to_ps$Sample_ID
+FR_to_ps <- FR_to_ps[,-1]
+
+ps_FR <- phyloseq(otu_table(FR_to_ps, taxa_are_rows=T))
+```
+
+Identify Contaminants - with Prevalence method
+```{r}
+neg <- FR_meta$Sample_or_Control == 'Control Sample' # True if a negative control sample
+
+# Prevalence-based contaminant classification
+contam <- isContaminant(as.matrix(ps_FR), neg=neg, threshold=0.1, detailed=TRUE, normalize=TRUE, method='prevalence')
+
+table(contam$contaminant) # no contaminants
+```
+
+
+
+# Taxonomy definition
+
+Creating a taxonomy file with all the different levels
+```{r}
+# creating a taxonomy dataframe
+tax <- tibble::rownames_to_column(FR_clean, "taxonomy")
+tax <- as.data.frame(tax[,1])
+colnames(tax) <- "taxonomy"
+
+
+#remove asterisks and trailing spaces from data
+tax$A <- gsub(pattern = "\\*", replacement="", 
+          x=tax$taxonomy)
+tax$B <- gsub("\\|", ",", gsub("^\\|", "",tax$A))
+
+# make new data frames with 8 columns: 
+# Kingdom | Phylum | Class | Order | Family | Genus | asv_genus
+taxonomy <- as.data.frame(str_split_fixed(tax$B, ",",7))
+
+taxonomy <- taxonomy %>% add_column("taxonomy" = tax$taxonomy, .before = "V1")
+
+# changing column names
+colnames(taxonomy) <- c("taxonomy", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+```
+
+Attach taxonomy to the ASV table
+```{r}
+asv_tax <- cbind.data.frame(taxonomy, FR_clean)
+rownames(asv_tax) <- NULL
+```
+
+Filtering
+```{r}
+# excluding Eukaryota
+asv_tax <- asv_tax %>% subset(Kingdom!="Eukaryota")
+
+# excluding the one defines just as Bacteria
+asv_tax <- asv_tax[-c(6:11), ]
+rownames(asv_tax) <- NULL
+asv_tax <- asv_tax[-c(692:694), ]
+
+# erase controls from asv_tax
+asv_tax <- asv_tax %>% dplyr::select(-(C005:EXNC2)) 
+```
+
+
+# Exporting dataframes
+
+Exporting dataframes of our samples in csv format
+```{r}
+write.csv(asv_tax, "outputs/asv_tax.csv", row.names = F)
+```
+
